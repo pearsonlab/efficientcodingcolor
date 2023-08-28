@@ -1,0 +1,15 @@
+- Work with John to do the math on paper 
+
+- Fixing centers idea
+John thinks we should tile centers over the entire space. Greg agrees. 
+Idea: Train channels first, then allow center to move a little?
+
+Meet at 3:30 with John tomorrow 
+
+Johnatan Pillow build in priors to RFs estimation
+
+
+
+If model was optimized, I would get
+1. Perfect mosaics
+2. All RFs have same shape 

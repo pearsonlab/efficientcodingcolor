@@ -1,0 +1,10 @@
+*.mat
+.*pt
+saves/*
+Videos/*
+kyoto_natim\*
+*.pt
+testing_grounds.py
+*.60
+Figures\*
+

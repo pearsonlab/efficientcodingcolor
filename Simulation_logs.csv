@@ -1,0 +1,19 @@
+ID,PCA,Colors,nRGCs,J/C start,J/C stop,iterations,output_noise,input_noise,Param,Notes
+230403-013925,0.38_inhib,MS,100,200k,500k,1M,3,0.4,None,
+230404-121120,TRUE,LMS,100,200k,500k,1M,3,0.4,None,
+230407-013723,TRUE,LMS,200,200k,500k,1M,3,0.4,None,
+230409-231107,TRUE,LMS,200,500K,800K,1.5M,3,0.4,None,
+230413-234143,TRUE,LMS,200,500k,800k,1.5M,1,0.4,None,
+230418-005023,FALSE,LMS,100,200k,500k,1M,3,0.4,None,
+230421-012342,FALSE,LMS,200,500k,800k,2M,3,0.4,None,
+230502-125114,FALSE,M,100,NA,NA,100k,3,0.4,DoG,
+230508-014147,FALSE,LMS,200,500k,800k,2M,3,0.4,DoG,
+230519-174509,FALSE,LMS,100,200k,500k,1M,3,0.4,DoG,d = d/L2norm(d). No d transformation
+230530-025727,FALSE,LMS,100,200k,500k,1M,3,0.4,DoG,Fixed bugs to get surrounds more consistently
+30601-003809,FALSE,LMS,100,200k,500k,1M,3,0.4,DoG,a and b are now vectors
+230601-152119,FALSE,M,100,200k,500k,1M,3,0.4,DoG,
+230602-134703,FALSE,M,100,200k,500k,1M,3,0.4,DoG,Initialized b at -3 instead of -0.9
+230606-020131,FALSE,LMS,100,200k,500k,1M,3,0.4,DoG,Save as previous but with color. Does not work; converges to points. Switched from sgd to adams. 
+230606-150041,FALSE,M,100,200k,500k,1M,3,0.4,DoG,Trying to check if switching to adam was the problem
+,,,,,,,,,,
+230607-152019,FALSE,LMS,100,200k,500k,1M,3,0.4,DoG,a and b are scalars instead of vectors. Still does not work

@@ -1,0 +1,3 @@
+Check how orthogonal 5th PC is to 2nd PC
+Look at curves and see how they are orthogonal
+concatenated RGB channel (2 curves on top of each other) 

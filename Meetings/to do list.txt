@@ -1,0 +1,4 @@
+To do list:
+1- Work on color project
+2- Write application for award
+3- Look at how correlated RGCs are in efficient coding model 

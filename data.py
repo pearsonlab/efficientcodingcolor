@@ -1,8 +1,5 @@
-import json
 import os
-import random
-from glob import glob
-from typing import List, Tuple, Union, Optional
+from typing import Union
 
 import numpy as np
 import torch
@@ -10,8 +7,9 @@ from PIL import Image
 from scipy.io.matlab import loadmat
 from torch.utils.data import Dataset
 from tqdm import trange, tqdm
+from util import get_matrix
+from sklearn.decomposition import PCA
 
-from temporal import preset_temp
 
 
 def circular_mask(kernel_size: int):
@@ -38,197 +36,6 @@ def estimated_covariance(dataset: Dataset, num_samples: int, device: Union[str, 
     return C
 
 
-class VideoDataset(Dataset):
-    def __init__(self,
-                 root: str,
-                 kernel_size: Union[int, Tuple[int, int]],
-                 frames: int,
-                 circle_masking: bool,
-                 group_size: Optional[int],
-                 random_flip: bool):
-        self.videos: List[Tuple[np.ndarray, float, float]] = []
-        if isinstance(kernel_size, int):
-            self.mask = circular_mask(kernel_size) if circle_masking else torch.ones((kernel_size, kernel_size))
-        else:
-            self.mask = torch.ones([kernel_size[0], kernel_size[1]])
-        if isinstance(kernel_size, int):
-            self.kernel_size = [kernel_size, kernel_size]
-        else:
-            self.kernel_size = kernel_size
-        self.frames = frames
-        self.group_size = group_size
-        self.random_flip = random_flip
-
-        files = sorted(glob(f"{root}/*.npy"))
-        if "FILENAME_PREFIX" in os.environ:
-            files = [file for file in files if os.path.basename(file).startswith(os.environ["FILENAME_PREFIX"])]
-            print(f"{len(files)} files after filtering for prefix: {os.environ['FILENAME_PREFIX']}")
-        self.files = [os.path.basename(f) for f in files]
-
-        if "FILENAME_PREFIX_NOT" in os.environ:
-            files = [file for file in files if not os.path.basename(file).startswith(os.environ["FILENAME_PREFIX"])]
-            print(f"{len(files)} files after filtering out for prefix: {os.environ['FILENAME_PREFIX']}")
-
-        assert len(files) > 0, f"no .npy files found under directory {root}"
-
-        stats = json.load(open(f"{root}/stats.json"))
-        # stats = json.load(open(f"{root}/stats-short800.json"))
-
-        for path in tqdm(files, desc="Loading video info"):
-            stat = stats[os.path.basename(path)]
-            video = np.load(path, mmap_mode="r")
-            self.videos.append((video, stat["mean"], stat["std"]))
-
-    def __len__(self):
-        return 128000  # any large number should work, since we don't care about "epoch" for now
-
-    def __getitem__(self, index):
-        if isinstance(index, str):
-            index = self.files.index(index)
-        elif self.group_size is None:
-            index = np.random.choice(len(self.videos))
-        else:
-            if index % self.group_size == 0:
-                random.shuffle(self.videos)
-            index = 0
-
-        video, mean, std = self.videos[index]
-
-        # begin = np.random.choice(video.shape[0] - self.frames)
-        begin = np.random.choice(min(800, video.shape[0]) - self.frames)
-        end = begin + self.frames
-        top = np.random.choice(video.shape[1] - self.kernel_size[0])
-        bottom = top + self.kernel_size[0]
-        left = np.random.choice(video.shape[2] - self.kernel_size[1])
-        right = left + self.kernel_size[1]
-
-        segment = (video[begin:end, top:bottom, left:right].astype(np.float32) - mean) / std
-        if self.random_flip:
-            if np.random.rand() > 1.1:
-                segment = segment[:1, :, :].repeat(segment.shape[0], axis=0)
-            else:
-                if np.random.rand() < 0.5:
-                    segment = segment[:, ::-1, :]
-                if np.random.rand() < 0.5:
-                    segment = segment[:, :, ::-1]
-
-        return torch.from_numpy(segment.copy()) * self.mask
-
-    def covariance(self, num_samples: int = 100000, device: Union[str, torch.device] = None, index=0):
-        return estimated_covariance(self, num_samples, device, index)
-
-
-class FilteredVideoDataset(Dataset):
-    def __init__(self,
-                 root: str,
-                 kernel_size: Union[int, Tuple[int, int]],
-                 frames: int,
-                 circle_masking: bool,
-                 group_size: Optional[int],
-                 random_flip: bool,
-                 neural_type: Optional[str],
-                 input_noise: Optional[float]):
-
-        self.temporal_filter = preset_temp(neural_type).reshape(-1, 1, 1)
-        self.videos: List[Tuple[np.ndarray, float, float]] = []
-        self.input_noise = input_noise
-
-        if isinstance(kernel_size, int):
-            self.mask = circular_mask(kernel_size) if circle_masking else torch.ones((kernel_size, kernel_size))
-        else:
-            self.mask = torch.ones([kernel_size[0], kernel_size[1]])
-        if isinstance(kernel_size, int):
-            self.kernel_size = [kernel_size, kernel_size]
-        else:
-            self.kernel_size = kernel_size
-        self.frames = frames
-        self.group_size = group_size
-        self.random_flip = random_flip
-
-        files = sorted(glob(f"{root}/*.npy"))
-        if "FILENAME_PREFIX" in os.environ:
-            files = [file for file in files if os.path.basename(file).startswith(os.environ["FILENAME_PREFIX"])]
-            print(f"{len(files)} files after filtering for prefix: {os.environ['FILENAME_PREFIX']}")
-        self.files = [os.path.basename(f) for f in files]
-
-        if "FILENAME_PREFIX_NOT" in os.environ:
-            files = [file for file in files if not os.path.basename(file).startswith(os.environ["FILENAME_PREFIX"])]
-            print(f"{len(files)} files after filtering out for prefix: {os.environ['FILENAME_PREFIX']}")
-
-        assert len(files) > 0, f"no .npy files found under directory {root}"
-
-        stats = json.load(open(f"{root}/stats.json"))
-        # stats = json.load(open(f"{root}/stats-short800.json"))
-
-        for path in tqdm(files, desc="Loading video info"):
-            stat = stats[os.path.basename(path)]
-            video = np.load(path, mmap_mode="r")
-            self.videos.append((video, stat["mean"], stat["std"]))
-
-    def __len__(self):
-        return 128000  # any large number should work, since we don't care about "epoch" for now
-
-    def __getitem__(self, index):
-        if isinstance(index, str):
-            index = self.files.index(index)
-        elif self.group_size is None:
-            index = np.random.choice(len(self.videos))
-        else:
-            if index % self.group_size == 0:
-                random.shuffle(self.videos)
-            index = 0
-
-        video, mean, std = self.videos[index]
-
-        # begin = np.random.choice(video.shape[0] - self.frames)
-        begin = np.random.choice(min(800, video.shape[0]) - self.frames)
-        end = begin + self.frames
-        top = np.random.choice(video.shape[1] - self.kernel_size[0])
-        bottom = top + self.kernel_size[0]
-        left = np.random.choice(video.shape[2] - self.kernel_size[1])
-        right = left + self.kernel_size[1]
-
-        segment = (video[begin:end, top:bottom, left:right].astype(np.float32) - mean) / std
-        segment += self.input_noise * np.random.randn(*segment.shape)
-        if self.random_flip:
-            if np.random.rand() > 1.1:
-                segment = segment[:1, :, :].repeat(segment.shape[0], axis=0)
-            else:
-                if np.random.rand() < 0.5:
-                    segment = segment[:, ::-1, :]
-                if np.random.rand() < 0.5:
-                    segment = segment[:, :, ::-1]
-
-        return (torch.from_numpy(segment.copy()) * self.mask * self.temporal_filter).sum(dim=0, keepdim=False)
-
-    def covariance(self, num_samples: int = 100000, device: Union[str, torch.device] = None, index=0):
-        return estimated_covariance(self, num_samples, device, index)
-
-
-class MultivariateGaussianDataset(Dataset):
-    """
-    A dataset sampling from a multivariate gaussian distribution instead of real images
-    """
-
-    def __init__(self, covariance: torch.Tensor):
-        assert covariance.dim() == 2 and covariance.shape[0] == covariance.shape[1]
-        self.D = covariance.shape[0]
-        self.C = covariance
-        self.L = self.C.cholesky().to(device="cuda" if torch.cuda.is_available() else "cpu")
-
-    def __len__(self):
-        return 100000
-
-    def __getitem__(self, index):
-        return self.L @ torch.randn(self.D, device=self.L.device)
-
-    def covariance(self, num_samples: int = 100000, device: Union[str, torch.device] = None):
-        covariance = self.C
-        if device is not None:
-            covariance = covariance.to(device)
-        return covariance
-
-
 class KyotoNaturalImages(Dataset):
     """
     A Torch Dataset class for reading the Kyoto Natural Image Dataset, available at:
@@ -237,15 +44,36 @@ class KyotoNaturalImages(Dataset):
     either 500x640 or 640x500 size, from which a rectangular patch is randomly extracted.
     """
 
-    def __init__(self, root, kernel_size, circle_masking, device='cuda'):
-
+    def __init__(self, root, kernel_size, circle_masking, device, n_colors):
+        #root = 'kyoto_natim'
+        #device = 'cuda'
         files = [mat for mat in os.listdir(root) if mat.endswith('.mat')]
         print("Loading {} images from {} ...".format(len(files), root))
-
+        self.n_colors = n_colors
+        
         images = []
+        
         for file in tqdm(files):
             if file.endswith('.mat'):
-                image = loadmat(os.path.join(root, file))['OM'].astype(np.float)
+                #David: Combined the responses from the three different cones into a single image array
+                imageOM = loadmat(os.path.join(root, file))['OM'].astype(np.float)
+                imageOS = loadmat(os.path.join(root, file))['OS'].astype(np.float)
+                imageOL = loadmat(os.path.join(root, file))['OL'].astype(np.float)
+                
+                #Inhibition from an "horizontal" cell to reduce MI between M and S cones. 
+                #MS_tot = imageOM + imageOS
+                #imageOM = imageOM - 0.38*MS_tot
+                #imageOS = imageOS - 0.38*MS_tot
+                
+                pca_comps = get_matrix('pca_comps')
+                
+                if n_colors == 1:
+                    image = imageOM
+                elif n_colors == 3:
+                    image = np.array([imageOL, imageOM, imageOS])
+                else:
+                    Exception("You can only have 1 or 3 colors")
+                #image = np.tensordot(pca_comps, image, axes = 1)
             else:
                 image = np.array(Image.open(os.path.join(root, file)).convert('L')).astype(np.float)
 
@@ -254,9 +82,16 @@ class KyotoNaturalImages(Dataset):
                 continue
             image -= np.mean(image)
             image /= std
+            
+            #David: Idea of how to substract cone responses to uncorrelate them
+            #M_S_tot = 0.38*(imageOM + imageOS)
+            #image[0] = image[0] - M_S_tot
+            #image[1] = image[1] - M_S_tot
+            
             images.append(torch.from_numpy(image).to(device))
-
+            
         self.device = device
+
         self.images = images
         self.kernel_size = kernel_size
 
@@ -283,21 +118,45 @@ class KyotoNaturalImages(Dataset):
 
     def covariance(self, num_samples: int = 100000, device: Union[str, torch.device] = None, index=0):
         return estimated_covariance(self, num_samples, device, index)
-
-
-def get_dataset(data: str, kernel_size: Union[int, Tuple[int, int]], frames: int, circle_masking: bool,
-                group_size: Optional[int], random_flip: bool, neural_type: Optional[str], input_noise: Optional[float]):
-    if data == "pink":
-        dataset = VideoDataset("palmer", kernel_size, frames, circle_masking, group_size, random_flip)
-        covariance = dataset.covariance()
-        return MultivariateGaussianDataset(covariance)
-    elif data == "pink_tempfilter":
-        dataset = FilteredVideoDataset("palmer", kernel_size, frames, circle_masking, group_size, random_flip, neural_type, input_noise)
-        covariance = dataset.covariance()
-        return MultivariateGaussianDataset(covariance)
-    elif data == "real_tempfilter":
-        return FilteredVideoDataset("palmer", kernel_size, frames, circle_masking, group_size, random_flip, neural_type, input_noise)
-    elif data == "kyoto":
-        return KyotoNaturalImages("kyoto", kernel_size, circle_masking, device='cuda')
-
-    return VideoDataset(data, kernel_size, frames, circle_masking, group_size, random_flip)
+    
+    def pca_color(self):
+        self.n_images = len(self.images)
+        images_reshaped = np.zeros([self.n_colors, 0], dtype = float)
+        for n_color in range(self.n_colors):
+            color = np.array([])
+            for i in range(self.n_images):
+                color = np.append(color, self.images[i][n_color,:,:].flatten().cpu())
+            if n_color == 0:
+                stack_length = color.shape[0]
+                images_reshaped = np.zeros([self.n_colors, stack_length])
+            images_reshaped[n_color,:] = color
+        self.flat = np.transpose(images_reshaped)
+        pca = PCA(n_components = 3)
+        pca.fit(self.flat)
+        self.pca = pca
+        self.comps = pca.components_
+        self.comps_inv = np.linalg.inv(self.comps)
+        
+        pcs = self.pca.fit_transform(self.flat)
+        self.mean_pcs = np.mean(np.sqrt(pcs**2), axis = 0)
+        
+    def whiten_pca(self, ratio):
+        image_index = 0
+        for image in self.images:
+            for color in range(self.n_colors):
+                image_flat = torch.reshape(image, [self.n_colors, image.shape[1]*image.shape[2]])
+                pcs = self.pca.fit_transform(np.transpose(image_flat.detach().cpu().numpy()))
+                var = self.pca.explained_variance_
+                A1 = np.sqrt(ratio[0]/var[0]); A2 = np.sqrt(ratio[1]/var[1]); A3 = np.sqrt(ratio[2]/var[2])
+                A = np.diag([A1,A2,A3])
+                #A = np.diag([1,1,1])
+                image_whiten = np.matmul(np.matmul(np.transpose(self.pca.components_), A), np.transpose(pcs))
+            image = np.reshape(image_whiten, image.shape)
+            #std = np.std(image)
+            #image -= np.mean(image)
+            #image /= std
+            self.images[image_index] = torch.tensor(image, device = 'cuda:0')
+            image_index = image_index + 1
+            
+            
+    

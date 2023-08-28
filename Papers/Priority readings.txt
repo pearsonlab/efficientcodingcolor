@@ -1,0 +1,10 @@
+atick & redlich 1990 - 1992
+atick lee & redlich on color - inferring RF from 
+
+Taking PNAS paper from Nayoung and look at references
+
+Eero Simoncelli (including inhibition)
+Karklin & Simoncelli proved that RFs were optimal
+Redlich proved that the shape was right assuming that RFs are symmetric. 
+
+In nayoun'gs bioarchive, John proves that the solution from Simoncelli and the one from redlich were the same conclusions. 
