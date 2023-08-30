@@ -36,21 +36,21 @@ def set_seed(seed=None, seed_torch=True):
 
 
 def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S"),
-          iterations: int = 2_000_000,
+          iterations: int = 3_000_000,
           #iterations: int = 3,
-          batch_size: int = 128,
+          batch_size: int = 64,
           data: str = "imagenet",
           kernel_size: int = 12,
           circle_masking: bool = True,
           dog_prior: bool = False,
           neurons: int = 500,  # number of neurons, J
-          jittering_start: Optional[int] = None, #originally 200000
-          jittering_stop: Optional[int] = None, #originally 500000
+          jittering_start: Optional[int] = 200000, #originally 200000
+          jittering_stop: Optional[int] = 500000, #originally 500000
           jittering_interval: int = 5000,
           jittering_power: float = 0.25,
           centering_weight: float = 0.02,
-          centering_start: Optional[int] = None, #originally 200000
-          centering_stop: Optional[int] = None, #originally 500000
+          centering_start: Optional[int] = 200000, #originally 200000
+          centering_stop: Optional[int] = 500000, #originally 500000
           input_noise: float = 0.4,
           output_noise: float = 3.0,
           nonlinearity: str = "softplus",
@@ -62,10 +62,10 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           learning_rate: float = 0.001, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
           rho: float = 1,
           maxgradnorm: float = 20.0,
-          load_checkpoint: str = None, #"230705-141246",  # checkpoint file to resume training from
-          fix_centers: bool = True,  # used if we want to fix the kernel_centers to learn params
+          load_checkpoint: str = "230828-152654", #"230705-141246",  # checkpoint file to resume training from
+          fix_centers: bool = False,  # used if we want to fix the kernel_centers to learn params
           n_mosaics = 6,
-          whiten_pca_ratio = None,
+          whiten_pca_ratio = [0.8,0.15,0.05],
           device: str = 'cuda' if torch.cuda.is_available() else 'cpu'):
 
     train_args = deepcopy(locals())  # keep all arguments as a dictionary

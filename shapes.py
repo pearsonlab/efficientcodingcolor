@@ -5,7 +5,7 @@ from torch import nn
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
-matplotlib.use('QtAgg')
+#matplotlib.use('QtAgg')
 
 class Shape(nn.Module):
     def __init__(self, kernel_size, initial_parameters, num_shapes, n_colors, read = False):
