@@ -31,6 +31,7 @@ from sklearn.mixture import GaussianMixture
 save = '230705-141246' #500 neurons 12x12x3
 #save = '230813-224700' #500 neurons 12x12x3 but [50,30,20] color pca split
 #save = '230821-024538' #500 neurons 12x12x3 but [50,30,20] color pca split. John's method 
+#save = '230825-143401' #Fixed kernel centers
 path = "saves/" + save + "/"
 
 class Analysis():
@@ -51,11 +52,7 @@ class Analysis():
             self.resp = None
             
                 
-            if 'encoder.kernel_centers' in self.cp['model_state_dict'].keys():
-                self.kernel_centers = self.cp['model_state_dict']['encoder.kernel_centers'].cpu().detach().numpy()
-            else:
-                n_mosaics = self.cp['model_args']['n_mosaics']
-                self.kernel_centers = hexagonal_grid(self.n_neurons, self.kernel_size, n_mosaics).cpu().detach().numpy()
+
             
             self.all_params = self.cp['model_state_dict']['encoder.shape_function.shape_params'].cpu().detach().numpy()
             self.kernel_size = self.cp['args']['kernel_size']
@@ -64,6 +61,12 @@ class Analysis():
             self.w_flat = self.cp['weights'].cpu().detach().numpy()
             self.w = reshape_flat_W(self.w_flat, self.n_neurons, self.kernel_size, self.n_colors)
             self.W = self.w
+            
+            if 'encoder.kernel_centers' in self.cp['model_state_dict'].keys():
+                self.kernel_centers = self.cp['model_state_dict']['encoder.kernel_centers'].cpu().detach().numpy()
+            else:
+                n_mosaics = self.cp['model_args']['n_mosaics']
+                self.kernel_centers = hexagonal_grid(self.n_neurons, self.kernel_size, n_mosaics).cpu().detach().numpy()
             
             self.L2_color = norm(self.w,axis = (1,2))
             self.centers_round = np.clip(round_kernel_centers(self.kernel_centers), 0, self.kernel_size -1)
@@ -235,7 +238,7 @@ class Analysis():
                 nearest_pairs.append(pair)
             return nearest_pairs
         
-        def plot3D(self, params, angles = None, size = 22, title = None, color_type = False, labels = 'LMS'):
+        def plot3D(self, params, angles = None, size = 22, title = None, color_type = False, labels = 'LMS', ellipse = False):
             colors = ['black', 'blue', 'red', 'yellow', 'green', 'orange', 'grey']
             if angles is not None:
                 elev, azim = angles
@@ -257,23 +260,35 @@ class Analysis():
                 color = 'black'
             ax.scatter(params[0,:], params[1,:], params[2,:], c = color)
             ax.set_title(title, size = 22)
+            if ellipse:
+                self.draw_ellipse(sig_ell = 0.2, ax = ax)
+            
             
             return ax
             
-        def plot3D_video(self, params, filename, title = None, size = 22, ellipse = False, special_command = None, color_type = True):
+        def plot3D_video(self, params, filename, title = None, size = 22, ellipse = False, special_command = None, color_type = True, labels = 'LMS'):
             azims = np.array(range(0,180,1))
+            alts = np.array(range(30,90,1))
+            alt = 30
             Videos_folder = 'Videos/' + save
+            matplotlib.use('agg')
+            count = 0
             if not os.path.exists(Videos_folder):
                 os.mkdir(Videos_folder)
             for azim in azims:
-                matplotlib.use('agg')
-                ax = self.plot3D(params, angles = (30, azim), title = title, color_type = color_type)
-                if ellipse:
-                    self.draw_ellipse(sig_ell = 0.2, ax = ax)
+                ax = self.plot3D(params, angles = (alt, azim), title = title, color_type = color_type, labels = labels, ellipse = ellipse)
+                plt.savefig('Videos/' + save + '/' + filename + '_' + str(count) + '.png')
+                count = count + 1
+                plt.close()
                 if special_command is not None:
                     exec(special_command)
-                plt.savefig('Videos/' + save + '/' + filename + '_' + str(azim) + '.png')
-                matplotlib.use('qtagg')
+            for alt in alts:
+                ax = self.plot3D(params, angles = (alt, azim), title = title, color_type = color_type, labels = labels, ellipse = ellipse)
+                if special_command is not None:
+                    exec(special_command)
+                plt.savefig('Videos/' + save + '/' + filename + '_' + str(count) + '.png')
+                count = count + 1
+                plt.close()
                 
         def get_images(self):
             images = KyotoNaturalImages('kyoto_natim', self.kernel_size, True, 'cuda', self.n_colors)
@@ -525,6 +540,7 @@ class Analysis():
             self.RF_size = new_size
             self.RF_centers = self.kernel_centers * (self.RF_size/self.kernel_size)
             self.centers_round = np.clip(round_kernel_centers(self.RF_centers), 0, self.RF_size -1)
+            self.center_colors = self.W[:,self.centers_round[:,0], self.centers_round[:,1]]
             
             
         def make_RF_from_pca(self):
