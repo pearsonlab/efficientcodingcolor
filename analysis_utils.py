@@ -52,7 +52,7 @@ def scale(W, W_all = None):
     
     W_max = np.max(W_scale)
     W_min = np.min(W_scale)
-    if abs(W_max) > abs(W_min):
+    if abs(W_max) < abs(W_min):
         ext = abs(W_min)
     else:
         ext = abs(W_max)
