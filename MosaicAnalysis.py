@@ -31,6 +31,7 @@ from sklearn.mixture import GaussianMixture
 save = '230705-141246' #500 neurons 12x12x3
 #save = '230813-224700' #500 neurons 12x12x3 but [50,30,20] color pca split
 #save = '230821-024538' #500 neurons 12x12x3 but [50,30,20] color pca split. John's method 
+
 path = "saves/" + save + "/"
 
 class Analysis():
@@ -49,6 +50,7 @@ class Analysis():
             self.c = self.model.encoder.shape_function.c.cpu().detach().numpy()
             self.d = self.model.encoder.shape_function.d.cpu().detach().numpy()
             self.resp = None
+            
             
                 
             if 'encoder.kernel_centers' in self.cp['model_state_dict'].keys():

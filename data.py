@@ -27,6 +27,7 @@ def circular_mask(kernel_size: int):
 
 def estimated_covariance(dataset: Dataset, num_samples: int, device: Union[str, torch.device] = None, index=0):
     loop = trange(num_samples, desc="Taking samples for covariance calculation", ncols=99)
+
     samples = torch.stack([dataset[index].flatten() for _ in loop])  # / dataset.mask
     if device is not None:
         samples = samples.to(device)
