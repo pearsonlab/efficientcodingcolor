@@ -38,12 +38,12 @@ def set_seed(seed=None, seed_torch=True):
 def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S"),
           iterations: int = 2_000_000,
           #iterations: int = 3,
-          batch_size: int = 128,
+          batch_size: int = 64,
           data: str = "imagenet",
           kernel_size: int = 12,
           circle_masking: bool = True,
           dog_prior: bool = False,
-          neurons: int = 500,  # number of neurons, J
+          neurons: int = 498,  # number of neurons, J
           jittering_start: Optional[int] = None, #originally 200000
           jittering_stop: Optional[int] = None, #originally 500000
           jittering_interval: int = 5000,
