@@ -32,6 +32,7 @@ save = '230705-141246' #500 neurons 12x12x3
 #save = '230813-224700' #500 neurons 12x12x3 but [50,30,20] color pca split
 #save = '230821-024538' #500 neurons 12x12x3 but [50,30,20] color pca split. John's method 
 #save = '230825-143401' #Fixed kernel centers
+save = '230828-152654' #500 neurons x12x12x3 but [80,15,5] pca split 
 path = "saves/" + save + "/"
 
 class Analysis():
