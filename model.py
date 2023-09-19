@@ -175,6 +175,7 @@ class Encoder(nn.Module):
         nr = self.output_noise * torch.randn_like(y)
         z = gain * (y - bias) + nr  # z.shape = [B, T, J]
 
+
         if self.nonlinearity == "relu":
             r = gain * (y - bias).relu()
             grad = ((y - bias) > 0).float()  # shape = [B, T, J]
