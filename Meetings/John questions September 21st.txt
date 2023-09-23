@@ -1,0 +1,5 @@
+1. t Cab(k) = cabR(k) (correlations among photoreceptors are independent of frequency, and
+the power spectrum of each photoreceptor is the same).
+I'm not sure this stands for eigenchannels; L+M+S has much much lower spatial frequencies than L-M
+
+2. I'm stuck lol. Why don't we define v? 
