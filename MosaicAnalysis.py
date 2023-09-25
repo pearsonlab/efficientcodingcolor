@@ -29,7 +29,7 @@ from sklearn.mixture import GaussianMixture
 
 #save = '230625-235533' #Loos nice, 300 neurons
 #save = '230705-141246' #500 neurons 12x12x3
-#save = '230813-224700' #500 neurons 12x12x3 but [50,30,20] color pca split
+#save = '230813-224700' #500 neurons 12x12x3 but [50,30,20] color pca split. David's old method
 #save = '230821-024538' #500 neurons 12x12x3 but [50,30,20] color pca split. John's method 
 save = '230825-143401' #Fixed kernel centers
 #save = '230828-152654' #500 neurons x12x12x3 but [80,15,5] pca split
@@ -37,7 +37,6 @@ path = "saves/" + save + "/"
 
 class Analysis():
         def __init__(self, path, DoG = True):
-            
             self.interval = 1000
             self.path = path
             last_cp_file = find_last_cp(path)
@@ -51,9 +50,6 @@ class Analysis():
             self.c = self.model.encoder.shape_function.c.cpu().detach().numpy()
             self.d = self.model.encoder.shape_function.d.cpu().detach().numpy()
             self.resp = None
-            
-                
-
             
             self.all_params = self.cp['model_state_dict']['encoder.shape_function.shape_params'].cpu().detach().numpy()
             self.kernel_size = self.cp['args']['kernel_size']
@@ -496,13 +492,17 @@ class Analysis():
             if plot:
                 plt.figure()
                 patches = []
+                line_length = int(self.pca.components_.shape[1]/self.n_colors)
                 for comp in range(n_comp):
-                    plt.plot(self.pca.components_[comp,:], color = colors[comp])
-                    plt.plot(self.pca.components_[comp,:], 'o', color = colors[comp])
-                    plt.xlabel('Distance from center', size = 22)
-                    plt.ylabel('PCA loadings', size = 22)
-                    plt.title("First " + str(n_comp) + " PCAs of radial RFs", size = 22)
+                    for color in range(self.n_colors):
+                        x_range = np.arange(line_length*color, line_length*(color+1))
+                        plt.plot(x_range, self.pca.components_[comp,x_range], color = colors[comp])
+                        plt.plot(x_range, self.pca.components_[comp,x_range], 'o', color = colors[comp])
                     patches.append(mpatches.Patch(color=colors[comp], label='PC' + str(comp + 1), linewidth=12, alpha=0.5))
+                plt.xlabel('Distance from center', size = 22)
+                plt.ylabel('PCA loadings', size = 22)
+                plt.title("First " + str(n_comp) + " PCAs of radial RFs", size = 22)
+                
                     
                 plt.axhline(y=0, xmin = 0, xmax = self.pca.components_.shape[1])
                 plt.axvline(x=self.rad_range)
