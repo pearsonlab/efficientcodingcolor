@@ -51,6 +51,7 @@ class Analysis():
             self.c = self.model.encoder.shape_function.c.cpu().detach().numpy()
             self.d = self.model.encoder.shape_function.d.cpu().detach().numpy()
             self.resp = None
+            self.fixed_centers = not 'encoder.kernel_centers' in self.cp['model_state_dict'].keys()
             
                 
 
@@ -63,7 +64,7 @@ class Analysis():
             self.w = reshape_flat_W(self.w_flat, self.n_neurons, self.kernel_size, self.n_colors)
             self.W = self.w
             
-            if 'encoder.kernel_centers' in self.cp['model_state_dict'].keys():
+            if not self.fixed_centers:
                 self.kernel_centers = self.cp['model_state_dict']['encoder.kernel_centers'].cpu().detach().numpy()
             else:
                 n_mosaics = self.cp['model_args']['n_mosaics']
@@ -94,7 +95,10 @@ class Analysis():
                 cp = torch.load(path + 'checkpoint-' + str(iteration) + '.pt')
                 model = torch.load(path + 'model-' + str(iteration) + '.pt')
                 all_params = cp['model_state_dict']['encoder.shape_function.shape_params'].cpu().detach().numpy()
-                kernel_centers = cp['model_state_dict']['encoder.kernel_centers'].cpu().detach().numpy()
+                if not self.fixed_centers:
+                    kernel_centers = cp['model_state_dict']['encoder.kernel_centers'].cpu().detach().numpy()
+                else: kernel_centers = self.kernel_centers
+                    
                 weights_flat = cp['weights'].cpu().detach().numpy()
                 weights = reshape_flat_W(weights_flat, self.n_neurons, self.kernel_size, self.n_colors)
                 
@@ -573,7 +577,7 @@ class Analysis():
         
         def __call__(self):
             plt.close('all')
-            #self.get_params_time()
+            self.get_params_time()
             self.increase_res(100, norm_size = True)
             
             self.kernels_image = self.make_kernels_image(self.w, n_neurons = 50)
