@@ -500,20 +500,21 @@ class Analysis():
                 for comp in range(n_comp):
                     for color in range(self.n_colors):
                         x_range = np.arange(line_length*color, line_length*(color+1))
-                        plt.plot(x_range, self.pca.components_[comp,x_range], color = colors[comp])
-                        plt.plot(x_range, self.pca.components_[comp,x_range], 'o', color = colors[comp])
-                    patches.append(mpatches.Patch(color=colors[comp], label='PC' + str(comp + 1), linewidth=12, alpha=0.5))
-                plt.xlabel('Distance from center', size = 22)
-                plt.ylabel('PCA loadings', size = 22)
+                        plt.plot(x_range, self.pca.components_[comp,x_range], color = colors[comp], linewidth = 5)
+                        plt.plot(x_range, self.pca.components_[comp,x_range], 'o', color = colors[comp], markersize = 10)
+                    patches.append(mpatches.Patch(color=colors[comp], label='PC' + str(comp + 1) + ": " + str(format(pca.explained_variance_ratio_[comp] * 100, '.1f')) + " %", linewidth=12, alpha=0.5))
+                plt.xlabel('Distance from center', size = 40)
+                plt.ylabel('PCA loadings', size = 40)
                 plt.title("First " + str(n_comp) + " PCAs of radial RFs", size = 22)
                 
                     
                 plt.axhline(y=0, xmin = 0, xmax = self.pca.components_.shape[1])
-                plt.axvline(x=self.rad_range)
-                plt.axvline(x=self.rad_range*2)
-                plt.xticks(ticks = [int(self.rad_range/2), int(self.rad_range*1.5), int(self.rad_range*2.5)], labels = ['L', 'M', 'S'], size = 20)
+                plt.axvline(x=self.rad_range, color = 'black')
+                plt.axvline(x=self.rad_range*2, color = 'black')
+                plt.xticks(ticks = [int(self.rad_range/2), int(self.rad_range*1.5), int(self.rad_range*2.5)], labels = ['Long cones', 'Medium cones', 'Short cones'], size = 40)
+                plt.yticks([])
                 
-                plt.legend(handles=patches, loc='upper right', framealpha=0.5, frameon=True, fontsize = 20)
+                plt.legend(handles=patches, loc='upper right', framealpha=0.5, frameon=True, fontsize = 30)
         
         def increase_res(self, new_size, norm_size = False):
             if new_size%2 !=0:
