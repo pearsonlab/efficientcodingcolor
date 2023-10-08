@@ -1,0 +1,19 @@
+- lTwo elements in significnace:
+Efficient coding and rwhy the retina works that way.
+They are intertwined, they should be more separated. 
+
+After I say what the grant delivers, there's still more to say about significance. 
+Where will the field be at after I'm done. What is new that will be possible? 
+Cut out approach stuff and save it for approach section. 
+
+Efficient coding is not how an engineer would have designed it. 
+
+Give minimum background, and tell us how you're gonna davance that. 
+
+Cool story for aim 1: 80% of midget cells are RGCs. 
+If I want a cool story for aim 2: Why the hell would you encode motion in the retina?
+
+It could be for two reasons: Either not everything is efficient, or model is wrong. 
+Framing about testing which possibility is true. 
+
+Use preliminary data in the approach. Explain how we're going to solve this provblem. 

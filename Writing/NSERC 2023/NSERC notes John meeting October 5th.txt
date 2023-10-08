@@ -1,0 +1,32 @@
+- Really need more citations. Use numbers
+
+- Highlight 80% of midget cells instead of color opponency
+- We're in a privileged spot to study allocation across mosaics
+- Have figure with retina diagram. Explain photoreceptors, bipolar cells, RGCs, ON and OFF 
+- New models are more general. Less assumptions
+
+
+- Its better to say: EC has been successful in the retina at X, Y or Z
+X, Y and Z all have many citations 
+
+2nd paragraph: Retina background, then EC-retina background 
+3rd paragraph: What the present is (Simoncelli, us) 
+
+- Figure. X is not a multiplication symbol 
+
+Maybe: Add images behidn the stack 
+- Copy Nayoung's general structure
+- Have arrow from X to Y -> Maximize mutual information 
+
+Aim:
+Rationale 
+Preliminary data 
+EC model can explain why the retina works X way 
+
+- PRevious work in our lab showed that RFs in space and time form multiple types
+- Hwoever there were no motion selective cells, which we know exist.
+- I assume that this is because of a technical reason, which I think will give us motion selective work. 
+** Do not talk about separability. Previous model just used a simpler form that limits RFs. We will remove this assumption 
+and generalize the model.
+
+Have one sentence: I propose to generalize that model to space-time inseparable RFs (citations!!!!! for definition). 
