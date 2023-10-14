@@ -1,0 +1,8 @@
+﻿Atick, J. J. and A. N. Redlich (1990). "Towards a theory of early visual processing." Neural computation 2(3): 308-320.
+	
+Atick, J. J. and A. N. Redlich (1992). "What does the retina know about natural scenes?" Neural computation 4(2): 196-210.
+	
+Jun, N. Y., et al. (2022). "Efficient coding, channel capacity, and the emergence of retinal mosaics." Advances in neural information processing systems 35: 32311-32324.
+	
+Jun, N. Y., et al. (2021). "Scene statistics and noise determine the relative arrangement of receptive field mosaics." Proceedings of the National Academy of Sciences 118(39): e2105115118.
+	
