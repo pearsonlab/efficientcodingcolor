@@ -1,0 +1,8 @@
+It doesn't matter that we don't know something, it matters why we need to knwo a bout it. 
+
+Be more specific about what Simoncelli does better: 
+Vague language is bad, and gives impression of vague understanding
+Be specific about what exactly Simoncelli did better (Limited number of neurons, nonlinear output response). 
+These new models don't do X, which is a crucial thing for understanding Z. 
+We live in a world in color, and we live in a world that is currently moving. 
+Two of the most important things these models are leaving out: Color and motion. 
