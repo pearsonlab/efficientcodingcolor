@@ -1,0 +1,23 @@
+Its not clear why 2D models aren't good. What are the advantages of 3D models from a clinical perspective?
+"The morphology under and between both contacts is likely relevant to the VNS response" 
+
+Aim 1 and Aim 2 should be fused into one. 
+Aim 3 depends on other people?? 
+
+
+Many acronyms aren't defined: NEURON, COMSOL, EMG
+
+The significance of ASCENT could be more clearly defined; how many people are using this software? 
+Is this novel method only going to be used within the lab or is it already a thing? 
+
+Its not clear to me whether we need to do the simulation for every vagus nerve or if what is found in this study
+can generalize for the vagus nerve across people. 
+
+Good: Statistical analyses are well-stated
+
+Formula: Not well-defined, there's a typo.
+
+How do we validate the 3D model? - Aim 3
+Aims are dependent 
+
+Grantsmanship:
