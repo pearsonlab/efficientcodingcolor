@@ -1,0 +1,26 @@
+1. Need to change vfun (output 4) to output spatial frequency x channel 
+
+2. Need to change A (in Cx formula) to be a matrix (3x3) 
+instead of a scalar 
+
+3. Formula 22 and 23 are the ones that change 
+Rotate Cx to be in eigenchannel coordinates 
+Can either diagonalize A or Cx, its same thing
+For diagonal A, for each value in diagonal I run output 4. 
+
+I compute power, then I unrotate it to the original basis. 
+
+4. I have to decide a value for nu 
+Plot the three filters, they are going to look different. 
+
+
+The reason why marginal information gain per neuron graph
+is different is probably because I'm in a different 
+parameter regime.
+The fact the other graph is linear means I am not getting
+diminishing returns. 
+
+5. Most important thing right now is to get the spatial filters.
+We don't really need everything else right now. 
+
+To do (10), I use a generalized eigenvalue method. 
