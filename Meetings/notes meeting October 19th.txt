@@ -21,7 +21,7 @@ John: The restriction on firing rate is for every neuron
 NOT on the population 
 
 Greg idea: 
-Use VAR to reconstruct motion in natural images 
+Use VAE to reconstruct motion in natural images 
 Hope we can find ON-OFF DSGC
 
 

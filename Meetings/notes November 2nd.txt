@@ -24,3 +24,4 @@ diminishing returns.
 We don't really need everything else right now. 
 
 To do (10), I use a generalized eigenvalue method. 
+https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.eigh.html
