@@ -1,0 +1,58 @@
+- Lack of understanding alternative hypotheses.
+
+
+- Aim 1 was very grounded in litterature. Like the RGC-cone ratios to explain differences in midget cells. Cool hypothesis
+- However can't say the same about Aim 2. Its a bit more iffy
+I don't talk about ON-DGCs. There are 3 classes that I don't talk about.
+
+DSGC are very rare. If this was something that was really related to EC, then they would be highly conserved across species.
+** Need more justification from litterature for Aim 2. 
+
+Lack of overall framework that binds Aim 1 and Aim 2 together. 
+** Need to talk about correlated channels more!!!
+
+Innovation talks about challenge of fitting more parameters
+Could talk more about what these parameters are, why nobody has done that before and how we're gonna fix it.
+
+Its good that we use large databases of natural images and natural movies. 
+
+***Problem with approach: No suggestion of alternative hypotheses
+What are we going to do if the RGC ratio hypothesis does not work. How do we troubleshoot this?
+There are a lot of knobs to tweak in this kind of work, but I don't talk about that! 
+
+*Reviewer got confused about how I downsample. She thought I was squishing all pixels into 16x16.
+
+*I don't explain how I'm going to deal about multiple filters in Aim 2. 
+
+*Worries about whether this approach only gives me linear filters. 
+
+-----------------
+Daniel Marshall:
+SIgnificance was clear. Lost a reviewer during approach.
+Was hard to relate the approach to what was explained in significance. 
+
+Approach does not speak about any anticipated problems. 
+There are parametrization choices I specify in approach that I don't back up, or explain why we do it this way.
+
+---------------------------
+Alev Brigande:
+Overaching framework is missing. 
+**What we'll be able to do after. Future approaches
+How is this going to move the field forward
+
+-----------------
+Steve: Probability of a good grade is always better with a long answer
+I need to use all 7 pages. 
+Worried about parametrization of DoG RFs
+I need to justify it better!! Show preliminary results, that it always converges to that anyways 
+Lindsey: Not clear how you can get direction-selectiviy from DoG. 
+
+**Big point to panel: Grant needs to give better tutorial for approach!!
+Research is outside of panel's expertise
+
+Approach was more like a summary of the methods. ITs a refresher for people in the field
+
+Lindsey: Significance was expecting another paragraph. About methods previously used from the lab, what we're going to do, etc. 
+Need to think about audience when you're writing. 
+
+Lindsey: Figure 3 needs more explanation about how it relates to Aim 1 and Aim 2. Was not clear how this relates to cones. 

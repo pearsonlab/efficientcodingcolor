@@ -7,11 +7,11 @@ I like the fact controls is only a short section of a slide.
 I would personally remove the temperature control in the "Freely moving cardiogenic control" slide. 
 
 *** Need to explain the rationale of why the place preference experiment did not work.
-Its not that increasing heart rate increases anxiety, its that we attribute increased heart rate to a stressful stimuli.
+Its not that increasing heart rate incre  es anxiety, its that we attribute increased heart rate to a stressful stimuli.
 Its NOT a lower threshold!!
 
 Question: They show that increasing heart rate increases insula firing rate, but is that also true in the place preference experiment? 
 
 Posterior insula inhibition is enough to reverse the effect seen from optical pacing. I don't understand the theory behind that. 
 
-Significance: Elevated heart rate alone does NOT increase anxiety-like behavior. 
+Significance: Elevated heart rate alone does NOT increase anxiety-like behavior

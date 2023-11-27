@@ -29,10 +29,10 @@ Grantsmanship:
 Significant from clinical perspective
 Understanding this nerve has a lot of potential for curing depression, epilepsy, stroke rehabilitation.
 This would allow to do better vagus nerve stimulations in humans
-I like alternative solutions if they run out of RAM 
+I like alternative solutions if they run out of RAM
 
 Aims are very interdependent
-This is a modeling study. I don't like the fact its only being validated against experimental data in 3rd aim. 
+This is a modeling study. I don't like the fact its only being validated against experimental data in 3rd aim. Back and forth between aim 1 and aim 3.   
 Not clear how many people use the original ASCENT open-source software. 
 
 #Explain the two parts of this nerve, good and bad. Its not very clear how 3D models are going to help us stimulate the good one and not the bad one. 
