@@ -32,10 +32,12 @@ C = 3 # number of channels
 N = 1001 # number of points
 zz = np.linspace(-L/2, L/2, N)
 dz = zz[1] - zz[0]
-
+ 
 sigin = 0.4
 sigout = 1.25
-A = 100
+A = np.array([3,2,1])
+#A = 100
+
 alpha = 1.3
 
 def soft_bandpass(lo, hi, freqs, stiffness=10):
@@ -47,12 +49,18 @@ def soft_bandpass(lo, hi, freqs, stiffness=10):
 def C(k):
     return A/(np.abs(k)**alpha)
 
-def filter(A, sigin, sigout, nu, k_lims=None, o_lims=None):
-    def v_opt(k):
-        sqrt_piece = np.sqrt(1 + (4/nu) * (sigin**2/sigout**2) * k**alpha)
+def filter(A_pre, sigin, sigout, nu, k_lims=None, o_lims=None):
+    def v_opt(k_pre):
+        if type(k_pre) == np.ndarray:
+            A = np.repeat(A_pre[np.newaxis,:], k_pre.shape[0], axis=0)
+            k = np.repeat(k_pre[:, np.newaxis], A_pre.shape[0], axis = 1)
+        else:
+            A = A_pre
+            k = k_pre
+        sqrt_piece = np.sqrt(1 + (4/nu) * (sigin**2/sigout**2) * k**alpha/A)
         v2 = 0.5 * (sqrt_piece + 1) * A / (A + sigin**2 * k**alpha) - 1
         v2 = np.sqrt(np.maximum(v2, 0) * sigout**2/sigin**2)
-        
+        print(v2.shape)
         if k_lims:
             unit_cell_k = soft_bandpass(k_lims[0], k_lims[1], k)
             v2 *= unit_cell_k
@@ -70,14 +78,16 @@ nu = 1e-3
 vfun = filter(A, sigin, sigout, nu)
 
 def filter_power(nu, k_lims):
-    vfun = filter(A, sigin, sigout, nu)
-    func = lambda k: k * vfun(k)**2 * (C(k) + sigin**2)/(2 * np.pi)**2
-    return scipy.integrate.quad(func, k_lims[0], k_lims[1])[0]
+    output = []
+    for i in range(A.shape[0]):
+        func = lambda k: k * vfun(k)[i]**2 * (C(k)[i] + sigin**2)/(2 * np.pi)
+        output.append(scipy.integrate.quad(func, k_lims[0], k_lims[1])[0])
+    return output
 
 def filter_power_log_k(nu, omega0, log_k_lims):
     """Integrate power in psi = log k space."""
     vfun = filter(A, sigin, sigout, nu)
-    func = lambda psi: np.exp(2 * psi) * vfun(np.exp(psi), omega0**2) * (C(np.exp(psi), omega0) + sigin**2)/(2 * np.pi)**2
+    func = lambda psi: np.exp(2 * psi) * vfun(np.exp(psi)) * (C(np.exp(psi)) + sigin**2)/(2 * np.pi)
     return scipy.integrate.quad(func, log_k_lims[0], log_k_lims[1])[0]
 
 nu_list = np.logspace(-10, 0, 50) #[1e-6 , 1e-5, 1e-4, 0.005, 0.01, 0.05]
@@ -96,7 +106,7 @@ k_logrange = np.logspace(-3, 11, 100)
 idx = 8
 v2 = vfun(k_logrange)**2
 ax[0, 0].plot(np.log10(k_logrange), np.log10(v2), color='k')
-log_kp = (np.log10(A) - 2 * np.log10(sigin))/alpha
+log_kp = (np.log10(A) - 2 * np.log10(sigin))/alpha 
 log_v2_kp = 2 * np.log10(vfun(10**log_kp))
 log_kc = log_kp - (np.log10(nu) + 2 * np.log(sigout))/alpha
 log_v2_kc = 2 * np.log10(vfun(10**log_kc))
@@ -126,7 +136,7 @@ ax[0, 0].annotate(r"$k_f$", (log_kp, log_v2_kp + 0.5))
 ax[0, 0].annotate(r"$k_c$", (log_kc, log_v2_kc + 0.5))
 ax[0, 0].set_title(r"Filter response and filling phases")
 ax[0, 0].set_xlabel(r"$\log_{10} k$")
-ax[0, 0].set_ylabel(r"$\log_{10} |v(k)|^2$");
+ax[0, 0].set_ylabel(r"$\log_{10} |v(k)|^2$"); 
 ax[0, 0].text(*label_loc, r'\textbf{A}', transform=ax[0, 0].transAxes, fontsize=fontsize, fontweight=fontweight, va='top')
 
 for idx in enumerate(k_logrange[:60:10]):
@@ -269,7 +279,7 @@ def filter_k(kf, eps, k_lims=None, power=alpha):
 
 def filter(C, nu, k_lims=None):
     def v_opt(k, o):
-        CC = np.minimum(C(k, o), 1e32)
+        CC = np.minimum(C(k), 1e32)
         sqrt_piece = np.sqrt(CC**2 + (4/nu) * (sigin**2/sigout**2) * CC)
         v2 = 0.5 * (sqrt_piece + CC) / (sigin**2 + CC) - 1
         v2 = np.sqrt(np.maximum(v2, 0) * sigout**2/sigin**2)

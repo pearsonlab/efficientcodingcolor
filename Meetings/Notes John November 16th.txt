@@ -1,0 +1,19 @@
+- Should call the function three times, instad of having
+that function work on. 
+- Use mapping to do that 
+
+
+Double check that we're integrating into the right number of dimensions 
+
+When sokmething is bolded, it is a vector
+When the same variable is written unbolded, it is the norm of that vector
+
+Values in v2 are power spectral density: "Energy" in fourier space 
+
+fconmin
+scipy.optimize.minimize 
+Nelder-mead
+bfgs - uses Hessian, pretty good but can't work with large data
+
+B^T B = 1 
+^ COnstraint on B matrix, to transform 
