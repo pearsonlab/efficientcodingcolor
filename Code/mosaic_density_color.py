@@ -49,18 +49,11 @@ def soft_bandpass(lo, hi, freqs, stiffness=10):
 def C(k):
     return A/(np.abs(k)**alpha)
 
-def filter(A_pre, sigin, sigout, nu, k_lims=None, o_lims=None):
-    def v_opt(k_pre):
-        if type(k_pre) == np.ndarray:
-            A = np.repeat(A_pre[np.newaxis,:], k_pre.shape[0], axis=0)
-            k = np.repeat(k_pre[:, np.newaxis], A_pre.shape[0], axis = 1)
-        else:
-            A = A_pre
-            k = k_pre
+def filter(A, sigin, sigout, nu, k_lims=None, o_lims=None):
+    def v_opt(k):
         sqrt_piece = np.sqrt(1 + (4/nu) * (sigin**2/sigout**2) * k**alpha/A)
         v2 = 0.5 * (sqrt_piece + 1) * A / (A + sigin**2 * k**alpha) - 1
         v2 = np.sqrt(np.maximum(v2, 0) * sigout**2/sigin**2)
-        print(v2.shape)
         if k_lims:
             unit_cell_k = soft_bandpass(k_lims[0], k_lims[1], k)
             v2 *= unit_cell_k
@@ -69,9 +62,7 @@ def filter(A_pre, sigin, sigout, nu, k_lims=None, o_lims=None):
     return v_opt
 
 freqs_k = scipy.fft.fftfreq(N, d=dz) * np.pi
-
 freqs_k_small = freqs_k[(freqs_k > 0)]
-
 kk = freqs_k_small
 
 nu = 1e-3
