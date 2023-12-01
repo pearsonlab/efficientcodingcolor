@@ -153,14 +153,16 @@ class Encoder(nn.Module):
         with torch.no_grad():
             self.W /= self.W.norm(dim=0, keepdim=True)
 
-    def forward(self, image: torch.Tensor):
+    def forward(self, image: torch.Tensor, h_exp: torch.Tensor, firing_restriction):
         D = self.D
         L = image.shape[1]
         
         if self.shape is not None:
             self.W = self.shape_function(self.kernel_centers, self.kernel_polarities)
-
-        gain = self.logA.exp()  # shape = [J]
+        if firing_restriction == "Lagrange":
+            gain = self.logA.exp()  # shape = [J]
+        elif firing_restriction == "Gamma":
+            gain = 1/h_exp
         bias = self.logB.exp()
         nx = self.input_noise * torch.randn_like(image) #David: potential bug here
         
@@ -201,9 +203,18 @@ class OutputMetrics(object):
     loss: torch.Tensor = None
     linear_penalty: torch.Tensor = None
     quadratic_penalty: torch.Tensor = None
+    h: torch.Tensor = None
 
-    def final_loss(self):
-        return self.loss.mean() + self.linear_penalty + self.quadratic_penalty
+    def final_loss(self, firing_restriction):
+        if firing_restriction == "Lagrange":
+            return self.loss.mean() + self.linear_penalty + self.quadratic_penalty
+        elif firing_restriction == "Gamma":
+            return self.loss.mean()
+        else:
+            raise Exception("Firing restriction has to be either Lagrange or Gamma")
+    
+    def return_h(self):
+        return self.h
 
 
 class OutputTerms(object):
@@ -217,7 +228,7 @@ class OutputTerms(object):
     def __init__(self, model: "RetinaVAE"):
         self.model = model
 
-    def calculate_metrics(self, i) -> "OutputMetrics":
+    def calculate_metrics(self, i, firing_restriction) -> "OutputMetrics":
         KL = self.logdet_numerator - self.logdet_denominator
 
         target = os.environ.get("FIRING_RATE_TARGET", "1")
@@ -230,14 +241,19 @@ class OutputTerms(object):
             h = self.r.sub(target).mean()  # the equality constraint
         else:
             h = self.r.sub(target).mean(dim=0)  # the equality constraint
-        linear_penalty = (self.model.Lambda * h).sum()
-        quadratic_penalty = self.model.rho / 2 * (h ** 2).sum()
+        if firing_restriction == "Lagrange":
+            linear_penalty = (self.model.Lambda * h).sum()
+            quadratic_penalty = self.model.rho / 2 * (h ** 2).sum()
+        elif firing_restriction == "Gamma":
+            linear_penalty = 0
+            quadratic_penalty = 0
 
         return OutputMetrics(
             KL=KL,
             loss=self.model.beta * KL,
             linear_penalty=linear_penalty,
-            quadratic_penalty=quadratic_penalty
+            quadratic_penalty=quadratic_penalty,
+            h = h
         )
 
 
@@ -266,12 +282,12 @@ class RetinaVAE(nn.Module):
 
         self.Lambda = nn.Parameter(torch.rand(neurons))
 
-    def forward(self, x) -> OutputTerms:
+    def forward(self, x, h_exp, firing_restriction) -> OutputTerms:
         batch_size = x.shape[0]
         x = x.view(batch_size, -1, self.D)  # x.shape = [B, L, D] (L: input time points)
         
         o = OutputTerms(self)
-        o.z, o.r, numerator, denominator = self.encoder(x)
+        o.z, o.r, numerator, denominator = self.encoder(x, h_exp, firing_restriction)
 
         if numerator is not None:
             L_numerator = numerator.cholesky()
