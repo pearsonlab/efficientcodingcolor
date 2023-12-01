@@ -36,14 +36,14 @@ def set_seed(seed=None, seed_torch=True):
 
 
 def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S"),
-          iterations: int = 2_000_000,
+          iterations: int = 1_000_000,
           #iterations: int = 3,
-          batch_size: int = 64,
+          batch_size: int = 128,
           data: str = "imagenet",
           kernel_size: int = 12,
           circle_masking: bool = True,
           dog_prior: bool = False,
-          neurons: int = 498,  # number of neurons, J
+          neurons: int = 100,  # number of neurons, J
           jittering_start: Optional[int] = None, #originally 200000
           jittering_stop: Optional[int] = None, #originally 500000
           jittering_interval: int = 5000,
@@ -55,8 +55,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           output_noise: float = 3.0,
           nonlinearity: str = "softplus",
           beta: float = -0.5,
-          n_colors = 3,
-          shape: Optional[str] = "difference-of-gaussian", # "difference-of-gaussian" for Oneshape case
+          n_colors = 1,
+          shape: Optional[str] = None, # "difference-of-gaussian" for Oneshape case #BUG: Can't use color 1 with "difference-of-gaussian"
           individual_shapes: bool = True,  # individual size of the RFs can be different for the Oneshape case
           optimizer: str = "adam",  # can be "adam"
           learning_rate: float = 0.001, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
@@ -66,7 +66,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           fix_centers: bool = True,  # used if we want to fix the kernel_centers to learn params
           n_mosaics = 6,
           whiten_pca_ratio = None,
-          device: str = 'cuda' if torch.cuda.is_available() else 'cpu'):
+          device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
+          firing_restriction = "Lagrange"): #"Lagrange" or "gamma" 
 
     train_args = deepcopy(locals())  # keep all arguments as a dictionary
     for arg in sys.argv:
@@ -133,6 +134,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
         jittering_iterations = []
 
     kernel_norm_penalty = 0
+    h_exp = torch.ones([neurons], device = "cuda")
 
     model.train()
     with trange(last_iteration + 1, iterations + 1, ncols=99) as loop:
@@ -146,13 +148,16 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
             
             torch.manual_seed(iteration)
             #print('pre', batch.shape) #for debugging
-            output: OutputTerms = model(batch) #This is the line where forward gets called
+            if firing_restriction != "Gamma":
+                h_exp = torch.zeros(1, device = "cuda")
+            output: OutputTerms = model(batch, h_exp, firing_restriction) #This is the line where forward gets called
             #print('post') #for debugging
-            metrics: OutputMetrics = output.calculate_metrics(iteration)
-            
+            metrics: OutputMetrics = output.calculate_metrics(iteration, firing_restriction)
+            h_current = metrics.return_h().detach()
+            h_exp = 0.999*h_exp + 0.001*h_current
             effective_count = neurons
             
-            loss = metrics.final_loss() + kernel_norm_penalty
+            loss = metrics.final_loss(firing_restriction) + kernel_norm_penalty
             kernel_variance = model.encoder.kernel_variance()
             
             if not fix_centers:
@@ -164,7 +169,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
             param_norm = torch.cat([param.data.flatten() for param in model.parameters()]).norm()
             grad_norm = torch.cat(
                 [param.grad.data.flatten() for param in model.parameters() if param.grad is not None]).norm()
-            model.Lambda.grad.neg_()
+            if firing_restriction == "Lagrange":
+                model.Lambda.grad.neg_()
 
             if maxgradnorm:
                 torch.nn.utils.clip_grad_norm_(all_params, maxgradnorm)
