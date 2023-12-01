@@ -1,0 +1,30 @@
+Proposed project will make a great contribution to the field
+
+
+- Directed vs undirected learning 
+medial preoptic area (POM) is involved in singing
+Lesion in A11 (group midbrain dopamine cells) = no directed singing
+What circuits for undirected singing?
+Investigate output of POMs 
+
+Aim 1: Identify POM subtypes in directed and undirected learning
+3 groups: directed Singing, undirected singing, not singing, 
+
+Aim 2: Necessity and sufficiency of POM for learning (CELLREADR)
+Hypothesize that POM -> A11 = directed
+POM -> VTA undirected
+
+Significance was good. Aim 2 could have been emphasized better.
+
+Approach
+Aim 1: Clearly explained. Improvement of 45 mins explanation
+
+Aim 2: Well explained, seems promising
+This project is highly innovative, and will probably contribute 
+greatly to the litterature
+
+Review:
+- They improved terminology about extrinsic vs intrinsic motivation
+- Clarified that they can distinguish motivation vs ability to sing
+- Previous concern about CellREADR. Explain that this is already working 
+
