@@ -46,6 +46,9 @@ class Analysis():
             self.iterations = np.array(range(self.interval,self.max_iteration,self.interval))
             self.cp = torch.load(path + last_cp_file)
             self.model= torch.load(path + last_model_file)
+            
+            self.firing_restriction = self.cp['args']['firing_restriction']
+            
             self.a = self.model.encoder.shape_function.a.cpu().detach().numpy()
             self.b = self.model.encoder.shape_function.b.cpu().detach().numpy()
             self.c = self.model.encoder.shape_function.c.cpu().detach().numpy()
