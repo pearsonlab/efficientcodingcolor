@@ -32,8 +32,8 @@ from sklearn.mixture import GaussianMixture
 #save = '230813-224700' #500 neurons 12x12x3 but [50,30,20] color pca split. David's old method
 #save = '230821-024538' #500 neurons 12x12x3 but [50,30,20] color pca split. John's method 
 #save = '230825-143401' #Fixed kernel centers
-#save = '230828-152654' #500 neurons x12x12x3 but [80,15,5] pca split
-save = '231130-233607'
+save = '230828-152654' #500 neurons x12x12x3 but [80,15,5] pca split
+#save = '231130-233607'
 path = "../saves/" + save + "/"
 
 class Analysis():
@@ -47,16 +47,30 @@ class Analysis():
             self.cp = torch.load(path + last_cp_file)
             self.model= torch.load(path + last_model_file)
             
-            self.firing_restriction = self.cp['args']['firing_restriction']
+            try: self.firing_restriction = self.cp['args']['firing_restriction']
+            finally: print('Firing restriction not specified')
+            self.shape = self.cp['args']['shape']
+            if self.shape == 'difference-of-gaussian':
+                self.a = self.model.encoder.shape_function.a.cpu().detach().numpy()
+                self.b = self.model.encoder.shape_function.b.cpu().detach().numpy()
+                self.c = self.model.encoder.shape_function.c.cpu().detach().numpy()
+                self.d = self.model.encoder.shape_function.d.cpu().detach().numpy()
+                self.all_params = self.cp['model_state_dict']['encoder.shape_function.shape_params'].cpu().detach().numpy()
+                if not self.fixed_centers:
+                    self.kernel_centers = self.cp['model_state_dict']['encoder.kernel_centers'].cpu().detach().numpy()
+                else:
+                    n_mosaics = self.cp['model_args']['n_mosaics']
+                    self.kernel_centers = hexagonal_grid(self.n_neurons, self.kernel_size, n_mosaics).cpu().detach().numpy()
+                self.fixed_centers = not 'encoder.kernel_centers' in self.cp['model_state_dict'].keys()
+                
             
-            self.a = self.model.encoder.shape_function.a.cpu().detach().numpy()
-            self.b = self.model.encoder.shape_function.b.cpu().detach().numpy()
-            self.c = self.model.encoder.shape_function.c.cpu().detach().numpy()
-            self.d = self.model.encoder.shape_function.d.cpu().detach().numpy()
+            else:
+                self.a, self.b, self.c, self.d = 0
+                self.kernel_centers = 0
+                self.fixed_centers = False
+            self.centers_round = np.clip(round_kernel_centers(self.kernel_centers), 0, self.kernel_size -1)
+            
             self.resp = None
-            self.fixed_centers = not 'encoder.kernel_centers' in self.cp['model_state_dict'].keys()
-            
-            self.all_params = self.cp['model_state_dict']['encoder.shape_function.shape_params'].cpu().detach().numpy()
             self.kernel_size = self.cp['args']['kernel_size']
             self.n_colors = self.cp['args']['n_colors']
             self.n_neurons = self.cp['args']['neurons']
@@ -64,14 +78,9 @@ class Analysis():
             self.w = reshape_flat_W(self.w_flat, self.n_neurons, self.kernel_size, self.n_colors)
             self.W = self.w
             
-            if not self.fixed_centers:
-                self.kernel_centers = self.cp['model_state_dict']['encoder.kernel_centers'].cpu().detach().numpy()
-            else:
-                n_mosaics = self.cp['model_args']['n_mosaics']
-                self.kernel_centers = hexagonal_grid(self.n_neurons, self.kernel_size, n_mosaics).cpu().detach().numpy()
             
             self.L2_color = norm(self.w,axis = (1,2))
-            self.centers_round = np.clip(round_kernel_centers(self.kernel_centers), 0, self.kernel_size -1)
+           
             self.RF_size = self.kernel_size
             self.RF_centers = self.kernel_centers
             
@@ -583,20 +592,20 @@ class Analysis():
         def __call__(self):
             plt.close('all')
             self.get_params_time()
-            self.increase_res(100, norm_size = True)
+            #self.increase_res(100, norm_size = True)
             
-            self.kernels_image = self.make_kernels_image(self.w, n_neurons = 50)
-            self.radial_averages(15)
-            self.pca_radial_average(plot = False)
-            self.make_RF_from_pca()
-            self.get_pathways()
+            #self.kernels_image = self.make_kernels_image(self.w, n_neurons = 50)
+            #self.radial_averages(15)
+            #self.pca_radial_average(plot = False)
+            #self.make_RF_from_pca()
+            #self.get_pathways()
             
             #self.neighbors = self.return_neighbors(self.kernel_centers, check_same_pathway = True)
-            self.get_responses()
+            #self.get_responses()
             #self.make_df()
             #self.make_df_pairs()
             #self.get_cov_colors()
-            self.images.pca_color()
+            #self.images.pca_color()
             matplotlib.use("Qtagg")
             
 test = Analysis(path)
