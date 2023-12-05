@@ -1,0 +1,31 @@
+This is an exciting proposal
+
+Vagus nerve stimulation is a potential treatment for many diseases (epilepsy, depression)
+However, vagus nerve stimulation has many side effects such as hoarse throat, coughing, changes in voice.
+
+These side effects can potentially be avoided. Therapeutic nerves and side effects nerve are in different compartments of the vagus nerve.
+Models of vagus nerve have been developped to infer how to best place electrodes to target the therapeutic nerves ans avoid the side effect ones. 
+However, these models only include the 2D structure of the vagus nerve. The vagus nerve changes a lot across its length, which is why modeling the 3D structure is important.
+
+The applicant proposes to develop a new 3D model of the vagus nerve. It seems like the applicant has already done previous work on this and already such a model. This proposal aims to push this model forward. 
+In aim 1, the applicant will develop an automatic version of this software that can be integrated into ASCENT, which is a lab software for modeling peripheral nerve stimulation. More than 200 unique users. 
+In aim 2, the applicant will compare the predictions of 3D models to the previous 2D models. Dose-response curves for each nerve. This will allow him to understand under what conditions the 3D model makes different predictions. 
+
+First 2 aims are pure simulation. In aim 3, the applicant will compare predictions of the 3D model to experimental data. The data is organ-specific responses to vagus nerve stimulation (e.g. change in heart rate). 
+
+------------
+
+Applicant was very responsive to previous criticism from reviewers.
+1. Main criticism is the consistency of vagus nerve morphology in humans. Is one model good enough to model the vagus nerves across different people? 
+They have clarified that it is unclear how much variability there is across people. However, it is very consistent in pigs, which is promising for humans. 
+The applicant also argues that their work is the first step towards individualized modeling and stimulation of the vagus nerve.
+
+2. Removed interdependencies between aims. Clarified that they can do aim 3 with extrusion models if aim 2 shows that they are similar.
+
+3. Improved readability and clarified the differences between extrusion models and 3D models in preliminary data. 
+
+-----------
+
+Overall, I think this is a strong proposal with exciting research. One minor concern is that they won't make predictions of experimental data until Aim 3. 
+Its unclear how good these models are at predicting the actual nerve stimulation. I would imagine its possible to make these comparisons in the vagus nerve of animals, where you can actually do both simulations and experiments. 
+My guess is that this has likely been done, but hasn't been mentionned by the applicant. This concern is more on the clarification side, and doesn't distract from my excitement about this proposal. 
