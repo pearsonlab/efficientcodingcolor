@@ -32,43 +32,33 @@ from sklearn.mixture import GaussianMixture
 #save = '230813-224700' #500 neurons 12x12x3 but [50,30,20] color pca split. David's old method
 #save = '230821-024538' #500 neurons 12x12x3 but [50,30,20] color pca split. John's method 
 #save = '230825-143401' #Fixed kernel centers
-save = '230828-152654' #500 neurons x12x12x3 but [80,15,5] pca split
-#save = '231130-233607'
+#save = '230828-152654' #500 neurons x12x12x3 but [80,15,5] pca split
+
+#save = '231130-233607' #No firing restriction
+save = '231201-072752'
 path = "../saves/" + save + "/"
 
 class Analysis():
-        def __init__(self, path, DoG = True):
+        def __init__(self, path, epoch = None):
             self.interval = 1000
             self.path = path
-            last_cp_file = find_last_cp(path)
-            last_model_file = find_last_model(path)
+            if epoch == None:
+                last_cp_file = find_last_cp(path)
+                last_model_file = find_last_model(path)
+            else:
+                last_cp_file = "checkpoint-" + str(epoch) + ".pt"
+                last_model_file = "model-" + str(epoch) + ".pt"
+            
             self.max_iteration = int(last_cp_file[11:-3])
             self.iterations = np.array(range(self.interval,self.max_iteration,self.interval))
             self.cp = torch.load(path + last_cp_file)
             self.model= torch.load(path + last_model_file)
             
             try: self.firing_restriction = self.cp['args']['firing_restriction']
-            finally: print('Firing restriction not specified')
+            except: print('Firing restriction not specified')
             self.shape = self.cp['args']['shape']
-            if self.shape == 'difference-of-gaussian':
-                self.a = self.model.encoder.shape_function.a.cpu().detach().numpy()
-                self.b = self.model.encoder.shape_function.b.cpu().detach().numpy()
-                self.c = self.model.encoder.shape_function.c.cpu().detach().numpy()
-                self.d = self.model.encoder.shape_function.d.cpu().detach().numpy()
-                self.all_params = self.cp['model_state_dict']['encoder.shape_function.shape_params'].cpu().detach().numpy()
-                if not self.fixed_centers:
-                    self.kernel_centers = self.cp['model_state_dict']['encoder.kernel_centers'].cpu().detach().numpy()
-                else:
-                    n_mosaics = self.cp['model_args']['n_mosaics']
-                    self.kernel_centers = hexagonal_grid(self.n_neurons, self.kernel_size, n_mosaics).cpu().detach().numpy()
-                self.fixed_centers = not 'encoder.kernel_centers' in self.cp['model_state_dict'].keys()
-                
             
-            else:
-                self.a, self.b, self.c, self.d = 0
-                self.kernel_centers = 0
-                self.fixed_centers = False
-            self.centers_round = np.clip(round_kernel_centers(self.kernel_centers), 0, self.kernel_size -1)
+            self.params = self.DoG
             
             self.resp = None
             self.kernel_size = self.cp['args']['kernel_size']
@@ -81,20 +71,40 @@ class Analysis():
             
             self.L2_color = norm(self.w,axis = (1,2))
            
-            self.RF_size = self.kernel_size
-            self.RF_centers = self.kernel_centers
+
             
             lms_to_rgb = get_matrix(matrix_type = 'lms_to_rgb')
             self.lms_to_rgb = lms_to_rgb
             #self.W_rgb = np.tensordot(self.W, lms_to_rgb, axes = 1) #Gives red green opponency but thats a bug
             #self.W_rgb = np.transpose(np.tensordot(lms_to_rgb, np.transpose(self.W), axes = 1))
-            self.w_rgb = np.swapaxes(np.tensordot(lms_to_rgb, np.swapaxes(self.w, 0, 3), axes = 1), 0, 3)
+
+            #self.w_rgb = np.swapaxes(np.tensordot(lms_to_rgb, np.swapaxes(self.w, 0, 3), axes = 1), 0, 3)
             
             half_size = int(self.kernel_size/2)
             x = torch.arange(-half_size,half_size); y = torch.arange(-half_size,half_size)
             grid_x, grid_y = torch.meshgrid(x, y)
             rd = grid_x.flatten()**2 + grid_y.flatten()**2
             self.rd = torch.unsqueeze(rd,1)
+            
+            
+        class DoG():
+            def __init__(self, parametrized):
+                if parametrized:
+                    self.a = super.model.encoder.shape_function.a.cpu().detach().numpy()
+                    self.b = self.model.encoder.shape_function.b.cpu().detach().numpy()
+                    self.c = self.model.encoder.shape_function.c.cpu().detach().numpy()
+                    self.d = self.model.encoder.shape_function.d.cpu().detach().numpy()
+                    self.all_params = self.cp['model_state_dict']['encoder.shape_function.shape_params'].cpu().detach().numpy()
+                    if not self.fixed_centers:
+                        self.kernel_centers = self.cp['model_state_dict']['encoder.kernel_centers'].cpu().detach().numpy()
+                    else:
+                        n_mosaics = self.cp['model_args']['n_mosaics']
+                        self.kernel_centers = hexagonal_grid(self.n_neurons, self.kernel_size, n_mosaics).cpu().detach().numpy()
+                    self.fixed_centers = not 'encoder.kernel_centers' in self.cp['model_state_dict'].keys()
+                    self.centers_round = np.clip(round_kernel_centers(self.kernel_centers), 0, self.kernel_size -1)
+                    self.RF_size = self.kernel_size
+                    self.RF_centers = self.kernel_centers
+                
         
         def get_params_time(self):
             i = -1; first = True
@@ -591,7 +601,7 @@ class Analysis():
         
         def __call__(self):
             plt.close('all')
-            self.get_params_time()
+            #self.get_params_time()
             #self.increase_res(100, norm_size = True)
             
             #self.kernels_image = self.make_kernels_image(self.w, n_neurons = 50)

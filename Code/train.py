@@ -67,7 +67,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           n_mosaics = 6,
           whiten_pca_ratio = None,
           device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
-          firing_restriction = "Lagrange"): #"Lagrange" or "gamma" 
+          firing_restriction = "Lagrange"): #"Lagrange" or "gamma" or "None"
 
     train_args = deepcopy(locals())  # keep all arguments as a dictionary
     for arg in sys.argv:
