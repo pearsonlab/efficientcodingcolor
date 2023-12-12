@@ -34,7 +34,9 @@ from sklearn.mixture import GaussianMixture
 #save = '230825-143401' #Fixed kernel centers
 #save = '230828-152654' #500 neurons x12x12x3 but [80,15,5] pca split
 
-#save = '231130-233607' #No firing restriction
+#save = '231130-033618' #New firing restriction by changing Gamma! Efficient-image 
+#save = '231130-233607' #No firing restriction. Efficient-image
+
 save = '231201-072752'
 path = "../saves/" + save + "/"
 
