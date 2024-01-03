@@ -36,21 +36,21 @@ def set_seed(seed=None, seed_torch=True):
 
 
 def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S"),
-          iterations: int = 1_000_000,
+          iterations: int = 500_000,
           #iterations: int = 3,
           batch_size: int = 128,
           data: str = "imagenet",
-          kernel_size: int = 12,
+          kernel_size: int = 18,
           circle_masking: bool = True,
           dog_prior: bool = False,
           neurons: int = 100,  # number of neurons, J
-          jittering_start: Optional[int] = None, #originally 200000
-          jittering_stop: Optional[int] = None, #originally 500000
+          jittering_start: Optional[int] = 100000, #originally 200000
+          jittering_stop: Optional[int] = 250000, #originally 500000
           jittering_interval: int = 5000,
           jittering_power: float = 0.25,
           centering_weight: float = 0.02,
-          centering_start: Optional[int] = None, #originally 200000
-          centering_stop: Optional[int] = None, #originally 500000
+          centering_start: Optional[int] = 100000, #originally 200000
+          centering_stop: Optional[int] = 250000, #originally 500000
           input_noise: float = 0.4,
           output_noise: float = 3.0,
           nonlinearity: str = "softplus",
@@ -160,9 +160,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
             loss = metrics.final_loss(firing_restriction) + kernel_norm_penalty
             kernel_variance = model.encoder.kernel_variance()
             
-            if not fix_centers:
-                if centering_start <= iteration < centering_stop:
-                    loss = loss + centering_weight * kernel_variance.mean()
+            if centering_start <= iteration < centering_stop:
+                loss = loss + centering_weight * kernel_variance.mean()
             
             optimizer.zero_grad()
             loss.backward()

@@ -193,6 +193,8 @@ class Encoder(nn.Module):
         C_zx += C_nr
         C_z = self.matrix_spatiotemporal(self.data_covariance + C_nx, gain, cov = True)
         C_z += C_nr
+        
+        
         return z, r, C_z, C_zx
 
 
@@ -236,15 +238,21 @@ class OutputTerms(object):
             target = eval(target)
         else:
             target = float(target)
-
-        if self.model.Lambda.shape[0] == 1:
-            h = self.r.sub(target).mean()  # the equality constraint
-        else:
-            h = self.r.sub(target).mean(dim=0)  # the equality constraint
+        if firing_restriction == "Lagrange" or firing_restriction == "None":
+            if self.model.Lambda.shape[0] == 1:
+                h = self.r.sub(target).mean()  # the equality constraint
+            else:
+                h = self.r.sub(target).mean(dim=0)  # the equality constraint
+        elif firing_restriction == "Gamma":
+            if self.model.Lambda.shape[0] == 1:
+                h = self.r.mean()  # the equality constraint
+            else:
+                h = self.r.mean(dim=0)  # the equality constraint
+            
         if firing_restriction == "Lagrange":
             linear_penalty = (self.model.Lambda * h).sum()
             quadratic_penalty = self.model.rho / 2 * (h ** 2).sum()
-        elif firing_restriction == "Gamma":
+        elif firing_restriction == "Gamma" or firing_restriction == "None":
             linear_penalty = 0
             quadratic_penalty = 0
 
