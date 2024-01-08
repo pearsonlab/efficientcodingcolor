@@ -56,15 +56,15 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           nonlinearity: str = "softplus",
           beta: float = -0.5,
           n_colors = 1,
-          shape: Optional[str] = None, # "difference-of-gaussian" for Oneshape case #BUG: Can't use color 1 with "difference-of-gaussian"
+          shape: Optional[str] = "difference-of-gaussian", # "difference-of-gaussian" for Oneshape case #BUG: Can't use color 1 with "difference-of-gaussian"
           individual_shapes: bool = True,  # individual size of the RFs can be different for the Oneshape case
-          optimizer: str = "adam",  # can be "adam"
+          optimizer: str = "sgd",  # can be "adam"
           learning_rate: float = 0.001, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
           rho: float = 1,
           maxgradnorm: float = 20.0,
           load_checkpoint: str = None, #"230705-141246",  # checkpoint file to resume training from
           fix_centers: bool = True,  # used if we want to fix the kernel_centers to learn params
-          n_mosaics = 6,
+          n_mosaics = 10,
           whiten_pca_ratio = None,
           device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
           firing_restriction = "Lagrange"): #"Lagrange" or "gamma" or "None"
@@ -206,9 +206,10 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
                     writer.add_histogram("histograms/λ", Lambda, iteration, bins=100)
                 except ValueError:
                     print(Lambda, np.max(W), np.min(W))
-                    
+                     
 
                 r = output.r.detach().cpu().numpy().mean(-1)
+                print(r)
                 writer.add_histogram("histogram/r", r, iteration, bins=100)
 
                 gain = model.encoder.logA.detach().exp().cpu().numpy()

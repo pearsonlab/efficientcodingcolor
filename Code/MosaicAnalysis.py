@@ -37,8 +37,11 @@ from sklearn.mixture import GaussianMixture
 #save = '231130-033618' #New firing restriction by changing Gamma! Efficient-image 
 #save = '231130-233607' #No firing restriction. Efficient-image
 
-save = '231201-072752'
-path = "../saves/" + save + "/"
+#save = '231201-072752'
+save = '240102-143133' #Test 1 color 18x18 with Lagrange to check it works properly
+#save = '240103-085040' #Uh same but I tried to fix it by changing how matrix_spatiotemporal works. It does not work at all
+save = '240105-122557'
+path = "../../saves/" + save + "/"
 
 class Analysis():
         def __init__(self, path, epoch = None):
