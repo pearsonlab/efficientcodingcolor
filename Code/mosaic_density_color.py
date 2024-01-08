@@ -28,11 +28,11 @@ sns.set_context('talk')
 np.random.seed(12346)
 
 L = 10  # linear size of space in one dimension
-C = 3 # number of channels
+Ch = 3 # number of channels
 N = 1001 # number of points
 zz = np.linspace(-L/2, L/2, N)
 dz = zz[1] - zz[0]
- 
+
 sigin = 0.4
 sigout = 1.25
 A = np.array([3,2,1])
@@ -49,8 +49,9 @@ def soft_bandpass(lo, hi, freqs, stiffness=10):
 def C(k):
     return A/(np.abs(k)**alpha)
 
-def filter(A, sigin, sigout, nu, k_lims=None, o_lims=None):
-    def v_opt(k):
+def filter(A_all, sigin, sigout, nu, k_lims=None, o_lims=None):
+    def v_opt(k, channel):
+        A = A_all[channel]
         sqrt_piece = np.sqrt(1 + (4/nu) * (sigin**2/sigout**2) * k**alpha/A)
         v2 = 0.5 * (sqrt_piece + 1) * A / (A + sigin**2 * k**alpha) - 1
         v2 = np.sqrt(np.maximum(v2, 0) * sigout**2/sigin**2)
@@ -71,7 +72,7 @@ vfun = filter(A, sigin, sigout, nu)
 def filter_power(nu, k_lims):
     output = []
     for i in range(A.shape[0]):
-        func = lambda k: k * vfun(k)[i]**2 * (C(k)[i] + sigin**2)/(2 * np.pi)
+        func = lambda k: k * vfun(k, i)**2 * (C(k)[i] + sigin**2)/(2 * np.pi)
         output.append(scipy.integrate.quad(func, k_lims[0], k_lims[1])[0])
     return output
 
@@ -95,12 +96,15 @@ fontweight='heavy'
 k_logrange = np.logspace(-3, 11, 100)
 
 idx = 8
-v2 = vfun(k_logrange)**2
+v2 = vfun(k_logrange, 1)**2
 ax[0, 0].plot(np.log10(k_logrange), np.log10(v2), color='k')
-log_kp = (np.log10(A) - 2 * np.log10(sigin))/alpha 
-log_v2_kp = 2 * np.log10(vfun(10**log_kp))
+log_kp = (np.log10(A[0]) - 2 * np.log10(sigin))/alpha 
+
+
+
+log_v2_kp = 2 * np.log10(vfun(10**log_kp, 1))
 log_kc = log_kp - (np.log10(nu) + 2 * np.log(sigout))/alpha
-log_v2_kc = 2 * np.log10(vfun(10**log_kc))
+log_v2_kc = 2 * np.log10(vfun(10**log_kc, 1))
 
 
 ax[0, 0].vlines(log_kp, -11, log_v2_kp, color='k', linewidth=3)
