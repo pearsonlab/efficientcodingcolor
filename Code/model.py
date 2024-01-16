@@ -114,7 +114,9 @@ class Encoder(nn.Module):
         x = x.reshape(-1, L, D)                # shape = [J, 1, D] or [TJ, L, D]
         output_dim = x.shape[0]
         #if cov == False:
-        x = x.reshape(J, 1, L*D) #I did so here
+        #x = torch.swapaxes(x, 1, 2) #edit 1/3/2024. Meant to fix the fact that unparametrized doesn't work... it doesn't fix it
+        if D > 1: #edit 1/3/2024
+            x = x.reshape(J, 1, L*D) #I did so here. IMPORTANT: Need to put this line for more than 1 channel :)
         x = self.spatiotemporal(x)             # shape = [J, 1, J] or [TJ, T, J]
         x = x.flatten(start_dim=1)             # shape = [J, J]    or [TJ, TJ]
         #if cov == False:
@@ -282,7 +284,7 @@ class RetinaVAE(nn.Module):
                  data_covariance,
                  fix_centers,
                  n_colors,
-                 n_mosaics):
+                 n_mosaics):  
         super().__init__()
         self.beta = beta
         self.rho = rho

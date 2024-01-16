@@ -25,6 +25,8 @@ from matplotlib.patches import Rectangle
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
 from sklearn.mixture import GaussianMixture
+import scipy.optimize as opt
+import cv2
 
 
 #save = '230625-235533' #Loos nice, 300 neurons
@@ -37,13 +39,21 @@ from sklearn.mixture import GaussianMixture
 #save = '231130-033618' #New firing restriction by changing Gamma! Efficient-image 
 #save = '231130-233607' #No firing restriction. Efficient-image
 
-save = '231201-072752'
-path = "../saves/" + save + "/"
+#save = '231201-072752'
+#save = '240102-143133' #Test 1 color 18x18 with Lagrange to check it works properly
+#save = '240103-085040' #Uh same but I tried to fix it by changing how matrix_spatiotemporal works. It does not work at all
+
+
+save = '240107-204731' #SGD, lagrange
+#save = '240108-090323' #SGD, Gamma
+
+path = "../../saves/" + save + "/"
 
 class Analysis():
         def __init__(self, path, epoch = None):
             self.interval = 1000
             self.path = path
+            self.epoch = epoch
             if epoch == None:
                 last_cp_file = find_last_cp(path)
                 last_model_file = find_last_model(path)
@@ -60,7 +70,11 @@ class Analysis():
             except: print('Firing restriction not specified')
             self.shape = self.cp['args']['shape']
             
-            self.params = self.DoG
+            if self.cp['args']['shape'] is None:
+                self.parametrized = False
+            else:
+                self.parametrized = True
+            
             
             self.resp = None
             self.kernel_size = self.cp['args']['kernel_size']
@@ -89,23 +103,54 @@ class Analysis():
             self.rd = torch.unsqueeze(rd,1)
             
             
-        class DoG():
-            def __init__(self, parametrized):
-                if parametrized:
-                    self.a = super.model.encoder.shape_function.a.cpu().detach().numpy()
-                    self.b = self.model.encoder.shape_function.b.cpu().detach().numpy()
-                    self.c = self.model.encoder.shape_function.c.cpu().detach().numpy()
-                    self.d = self.model.encoder.shape_function.d.cpu().detach().numpy()
-                    self.all_params = self.cp['model_state_dict']['encoder.shape_function.shape_params'].cpu().detach().numpy()
-                    if not self.fixed_centers:
-                        self.kernel_centers = self.cp['model_state_dict']['encoder.kernel_centers'].cpu().detach().numpy()
-                    else:
-                        n_mosaics = self.cp['model_args']['n_mosaics']
-                        self.kernel_centers = hexagonal_grid(self.n_neurons, self.kernel_size, n_mosaics).cpu().detach().numpy()
-                    self.fixed_centers = not 'encoder.kernel_centers' in self.cp['model_state_dict'].keys()
-                    self.centers_round = np.clip(round_kernel_centers(self.kernel_centers), 0, self.kernel_size -1)
-                    self.RF_size = self.kernel_size
-                    self.RF_centers = self.kernel_centers
+            if self.parametrized:
+                self.a = self.model.encoder.shape_function.a.cpu().detach().numpy()
+                self.b = self.model.encoder.shape_function.b.cpu().detach().numpy()
+                self.c = self.model.encoder.shape_function.c.cpu().detach().numpy()
+                self.d = self.model.encoder.shape_function.d.cpu().detach().numpy()
+                self.all_params = self.cp['model_state_dict']['encoder.shape_function.shape_params'].cpu().detach().numpy()
+                self.fixed_centers = not 'encoder.kernel_centers' in self.cp['model_state_dict'].keys()
+                
+                if self.fixed_centers:
+                    n_mosaics = self.cp['model_args']['n_mosaics']
+                    self.kernel_centers = hexagonal_grid(self.n_neurons, self.kernel_size, n_mosaics).cpu().detach().numpy()
+                else:
+                    self.kernel_centers = self.cp['model_state_dict']['encoder.kernel_centers'].cpu().detach().numpy()
+            
+                    
+                self.centers_round = np.clip(round_kernel_centers(self.kernel_centers), 0, self.kernel_size -1)
+                self.RF_size = self.kernel_size
+                self.RF_centers = self.kernel_centers
+            else:
+                self.find_kernel_centers()
+                
+        def fit_Gaussian_2D(self, xy, x0, y0, amp_c, sigma_c):
+            x,y = xy
+            x0 = float(x0)
+            y0 = float(y0)
+            e = math.e
+            center = amp_c*e**-(((x - x0)**2/sigma_c) + ((y-y0)**2/sigma_c))
+            #surround = amp_s*e**-(((x - x0)**2/sigma_s) + ((y-y0)**2/sigma_s))
+            #dog = center + surround 
+            return center.ravel()
+
+        def find_kernel_centers(self):
+            n_neurons = self.W.shape[0]; kernel_size = self.W.shape[1]
+            all_c = np.zeros([2, n_neurons])
+            W = np.mean(abs(self.W), 3)
+            #W = abs(np.mean(W,3))
+            initial_guess = (kernel_size/2,kernel_size/2,1,1)
+            x = np.linspace(0,kernel_size-1,kernel_size)
+            y = np.linspace(0,kernel_size-1,kernel_size)
+            x, y = np.meshgrid(x,y)
+            
+            for n in range(n_neurons):
+                try:
+                    params, cov = opt.curve_fit(self.fit_Gaussian_2D, (x,y), W[n,:,:].ravel(), p0 = initial_guess, maxfev=2000)
+                    all_c[:,n] = params[0:2]
+                except RuntimeError: 
+                    all_c[:,n] = [kernel_size/2, kernel_size/2]
+            self.kernel_centers = np.flip(np.transpose(all_c),1)
                 
         
         def get_params_time(self):
@@ -131,10 +176,10 @@ class Analysis():
                     all_params_time = np.zeros([iterations.shape[0], all_params.shape[0], all_params.shape[1]])
                     kernel_centers_time = np.zeros([iterations.shape[0], kernel_centers.shape[0], kernel_centers.shape[1]])
                     weights_time = np.zeros([iterations.shape[0], weights.shape[0], weights.shape[1], weights.shape[2], weights.shape[3]])
-                    a_time = np.zeros([iterations.shape[0], test.a.shape[0], test.a.shape[1]])
-                    b_time = np.zeros([iterations.shape[0], test.b.shape[0], test.b.shape[1]])
-                    c_time = np.zeros([iterations.shape[0], test.c.shape[0], test.c.shape[1]])
-                    d_time = np.zeros([iterations.shape[0], test.d.shape[0], test.d.shape[1]])
+                    a_time = np.zeros([iterations.shape[0], self.a.shape[0], self.a.shape[1]])
+                    b_time = np.zeros([iterations.shape[0], self.b.shape[0], self.b.shape[1]])
+                    c_time = np.zeros([iterations.shape[0], self.c.shape[0], self.c.shape[1]])
+                    d_time = np.zeros([iterations.shape[0], self.d.shape[0], self.d.shape[1]])
                     first = False
                 all_params_time[i,:,:] = all_params
                 kernel_centers_time[i,:,:] = kernel_centers
@@ -161,7 +206,17 @@ class Analysis():
             self.type = gauss.predict(X)
             
         
-        def make_mosaic_DoG(self, t = 'last', n_plots = 1, plot_size = False):
+        def make_mosaic_DoG(self, t = 'last', n_plots = 1, plot_size = False, save_fig = False):
+            if save_fig:
+                matplotlib.use('agg')
+                Videos_folder = '../Videos/' + save 
+                mosaic_folder = Videos_folder + '/center_mosaic/'
+                
+                if not os.path.exists(Videos_folder):
+                    os.mkdir(Videos_folder)
+                if not os.path.exists(mosaic_folder):
+                    os.mkdir(mosaic_folder)
+                
             if t == 'last':
                 t = self.iterations.shape[0] - 1
             if n_plots > self.n_colors:
@@ -205,17 +260,21 @@ class Analysis():
                         circle_surround = plt.Circle((x,y), radius = self.b, facecolor = 'none', edgecolor = 'b')
                         ax.add_patch(circle_center)
                         ax.add_patch(circle_surround)
+                if save_fig:
+                    plt.savefig(mosaic_folder + '/' + 'center_mosaic_' + str(int(self.epoch/self.interval)) + '.png')
+                    plt.close('all')
         
         def make_mosaic_DoG_time(self, filename = 'mosaic_color', plot_size = False):
             matplotlib.use('agg')
-            Videos_folder = 'Videos/' + save
+            Videos_folder = '../Videos/' + save
+            
             if not os.path.exists(Videos_folder):
                 os.mkdir(Videos_folder)
             for i in range(self.iterations.shape[0]):
                 if i%100 == 0:
                     print(i)
                 self.make_mosaic_DoG(i, 1, plot_size = plot_size)
-                plt.savefig('Videos/' + save + '/' + filename + '_' + str(i) + '.png')
+                plt.savefig(Videos_folder + '/' + filename + '_' + str(i) + '.png')
                 plt.close('all')
             matplotlib.use('qtagg')
         
@@ -619,6 +678,56 @@ class Analysis():
             #self.get_cov_colors()
             #self.images.pca_color()
             matplotlib.use("Qtagg")
+
+class Analysis_time():
+    def __init__(self, path):
+        self.interval = 1000
+        last_cp_file = find_last_cp(path)
+        last_model_file = find_last_model(path) 
+        self.max_iteration = int(last_cp_file[11:-3])
+        self.iterations = np.array(range(self.interval,self.max_iteration + self.interval,self.interval))
+        self.n_analyses = int(self.max_iteration/self.interval)
+        all_analyses = []
+        for iteration in self.iterations:
+            all_analyses.append(Analysis(path, epoch = iteration))
+            if iteration%100000 == 0:
+                print(iteration)
+        self.analyses = all_analyses
+        
+    def make_mosaic_images(self):
+        for n in range(self.n_analyses):
+            self.analyses[n].make_mosaic_DoG(save_fig = True)
+            if n%100 == 0:
+                print(n, ' center mosaic')
+                
+    #eg: "center_mosaic.mp4" or "center_mosaic.avi"
+def make_video(video_name):
+    image_folder = '../Videos/' + save + '/' + video_name + '/'
+    video_name = video_name + '.mp4'
+
+    images = [img for img in os.listdir(image_folder) if img.endswith(".png")]
+    print('hello')
+    frame = cv2.imread(os.path.join(image_folder, images[0]))
+    height, width, layers = frame.shape
+    
+    video = cv2.VideoWriter(video_name, 0, 1, (width,height))
+    print('hello')
+    a = True
+    for image in images:
+        #print(image)
+        hello = cv2.imread(os.path.join(image_folder, image))
+        if a:
+            print('hey')
+            a = False
+        video.write(cv2.imread(os.path.join(image_folder, image)))
+    
+    cv2.destroyAllWindows()
+    video.release()
             
+        
+    
+
 test = Analysis(path)
-test()
+#test()
+#test2 = Analysis_time(path)
+#test2.make_mosaic_images()
