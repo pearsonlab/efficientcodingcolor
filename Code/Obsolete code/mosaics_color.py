@@ -158,7 +158,7 @@ def contour_coord(W):
         
     return all_c
 
-def Gaussian_2D(xy, x0, y0, amp_c, sigma_c):
+def fit_Gaussian_2D(xy, x0, y0, amp_c, sigma_c):
     x,y = xy
     x0 = float(x0)
     y0 = float(y0)
@@ -179,7 +179,7 @@ def contour_coord_gauss(W):
     x, y = np.meshgrid(x,y)
     
     for n in range(n_neurons):
-        params, cov = opt.curve_fit(Gaussian_2D, (x,y), W[n,:,:].ravel(), p0 = initial_guess)
+        params, cov = opt.curve_fit(fit_Gaussian_2D, (x,y), W[n,:,:].ravel(), p0 = initial_guess)
         all_c[:,n] = params[0:2]
     return all_c
     

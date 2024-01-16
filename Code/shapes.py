@@ -73,7 +73,6 @@ class DifferenceOfGaussianShape(Shape):
         rr = rr.repeat(1,self.n_colors,1)
         #print('a:',a[0],'b',b[0], 'logA', logA[0], 'logB', logB[0])
         DoG = d*(torch.exp(-a * rr) - c * torch.exp(-b * rr))
-        print(DoG.shape, "hello good sir ")
         DoG = torch.swapaxes(DoG, 0, 1) #David: Without this line, output of this module and the shape of the stimuli don't match. Important bug that took multiple weeks to fix. 
         self.W = DoG
         DoG = DoG.flatten(0,1)
