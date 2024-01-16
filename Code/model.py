@@ -59,6 +59,7 @@ class Encoder(nn.Module):
            shape_module = get_shape_module(shape)
 
            self.shape_function = shape_module(kernel_size, self.image_channels, self.J if individual_shapes else 1)
+        
         else:  
             #David: added self.image_channels dimension so we have enough weights for cones
             W = 0.02 * torch.randn(self.image_channels*self.D, self.J)
@@ -170,6 +171,8 @@ class Encoder(nn.Module):
         #(y = input @ self.w from spatiotemporal) would have consistent dimensions. 
         image_nx = image + nx
         self.test_counter = self.test_counter + 1
+        
+        print(image_nx.shape, "shape image_nx")
         image_nx = image_nx.flatten(1,2)
         #image_nx = image_nx.reshape([25,L*D]) #This is buggy, flattening is much better
 

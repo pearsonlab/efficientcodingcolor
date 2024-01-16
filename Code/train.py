@@ -133,7 +133,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
     else:
         jittering_iterations = []
 
-    kernel_norm_penalty = 0
+    kernel_norm_penalty = 0 #Uh... why? $$ 
     h_exp = torch.ones([neurons], device = "cuda")
 
     model.train()
@@ -149,7 +149,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
             torch.manual_seed(iteration)
             #print('pre', batch.shape) #for debugging
             if firing_restriction != "Gamma":
-                h_exp = torch.zeros(1, device = "cuda")
+                h_exp = torch.ones(1, device = "cuda")
             output: OutputTerms = model(batch, h_exp, firing_restriction) #This is the line where forward gets called
             #print('post') #for debugging
             metrics: OutputMetrics = output.calculate_metrics(iteration, firing_restriction)

@@ -28,7 +28,7 @@ sns.set_context('talk')
 np.random.seed(12346)
 
 L = 10  # linear size of space in one dimension
-Ch = 3 # number of channels
+n_channels = 3 # number of channels
 N = 1001 # number of points
 zz = np.linspace(-L/2, L/2, N)
 dz = zz[1] - zz[0]
@@ -94,9 +94,34 @@ fontsize=28
 fontweight='heavy'
 
 k_logrange = np.logspace(-3, 11, 100)
-
 idx = 8
-v2 = vfun(k_logrange, 1)**2
+
+v2 = np.empty([k_logrange.shape[0],n_channels])
+for i in range(n_channels):
+    v2[:,i] = vfun(k_logrange, i)**2
+
+def power_func(v):
+    def power(B):
+        #print(v.shape, B.shape)
+        B2 = np.reshape(B, [3,3])
+        B2T = np.transpose(B2)
+        v_color = np.matmul(v, B2)
+        
+        return -np.sum(v_color)
+    return power
+
+v2_color_func = power_func(v2)
+B_init = np.diag([3,3,3])
+
+con = lambda B: np.sum((np.matmul(B, np.transpose(B)) - np.diag([1,1,1]))**2)
+cons = {'type':'eq', 'fun': con}
+#con2 = scipy.optimize.LinearConstraint(con, 0, 0)
+
+hey = scipy.optimize.minimize(v2_color_func, x0 = B_init, constraints=cons)
+
+#Check euler angles  for orthogonal matrices 
+#Package Cvx if the problem is convex. Can specify matrix form 
+
 ax[0, 0].plot(np.log10(k_logrange), np.log10(v2), color='k')
 log_kp = (np.log10(A[0]) - 2 * np.log10(sigin))/alpha 
 
