@@ -64,11 +64,15 @@ class Encoder(nn.Module):
             #David: added self.image_channels dimension so we have enough weights for cones
             W = 0.02 * torch.randn(self.image_channels*self.D, self.J)
             self.W = nn.Parameter(W / W.norm(dim=0, keepdim=True))  # spatial kernel, [D, J]
-
+        
         self.logA = nn.Parameter(0.02 * torch.randn(self.J))  # gain of the nonlinearity
         self.logB = nn.Parameter(0.02 * torch.randn(self.J) - 1)  # bias of the nonlinearity
         
         self.test_counter = 0
+        
+        #self.params = nn.ModuleDict({
+        #    'MI': nn.ModuleList([self.W]),
+        #    'firing': nn.ModuleList([self.logA, self.logB])})
 
     def kernel_variance(self):
         W = self.W / self.W.norm(dim=0, keepdim=True)
@@ -94,7 +98,7 @@ class Encoder(nn.Module):
         y = input @ self.W
         return y
 
-    def matrix_spatiotemporal(self, input: torch.Tensor, gain: torch.Tensor, cov = False):
+    def matrix_spatiotemporal(self, input: torch.Tensor, gain: torch.Tensor, cov = False, record_C = False):
         # compute C_rx in VAE note page 8.
         # input.shape = [LD, LD], gain.shape = [1 or B, T or 1, J]
         assert input.ndim == 2 and input.shape[0] == input.shape[1]
@@ -121,7 +125,8 @@ class Encoder(nn.Module):
         x = x.flatten(start_dim=1)             # shape = [J, J]    or [TJ, TJ]
         #if cov == False:
         #x = x.reshape(J, J) #David: and here
-        
+        if record_C:
+            self.WCxW = x
         #David: gain.shape = [3,100,100]
         G = gain.reshape(-1, output_dim)       # shape = [1 or B, J] or [1 or B, TJ]
         #David: G.shape = [100,100]
@@ -156,16 +161,13 @@ class Encoder(nn.Module):
         with torch.no_grad():
             self.W /= self.W.norm(dim=0, keepdim=True)
 
-    def forward(self, image: torch.Tensor, h_exp: torch.Tensor, firing_restriction):
+    def forward(self, image: torch.Tensor, h_exp: torch.Tensor, firing_restriction, record_C = False):
         D = self.D
         L = image.shape[1]
         
         if self.shape is not None:
             self.W = self.shape_function(self.kernel_centers, self.kernel_polarities)
-        if firing_restriction == "Lagrange":
-            gain = self.logA.exp()  # shape = [J]
-        elif firing_restriction == "Gamma":
-            gain = 1/h_exp
+        gain = self.logA.exp()  # shape = [J]
         bias = self.logB.exp()
         nx = self.input_noise * torch.randn_like(image) #David: potential bug here
         
@@ -185,19 +187,22 @@ class Encoder(nn.Module):
 
         if self.nonlinearity == "relu":
             r = gain * (y - bias).relu()
+            
             grad = ((y - bias) > 0).float()  # shape = [B, T, J]
         else:  # softplus nonlinearity
             r = gain * F.softplus(y - bias, beta=2.5)
             grad = torch.sigmoid(2.5 * (y-bias))
         gain = gain * grad
-
         C_nx = self.input_noise ** 2 * torch.eye(L * D, device=image.device)
-        C_zx = self.matrix_spatiotemporal(C_nx, gain)  # shape = [1 or B, J, J] or [1 or B, TJ, TJ]
+        C_zx = self.matrix_spatiotemporal(C_nx, gain, record_C = False)  # shape = [1 or B, J, J] or [1 or B, TJ, TJ]
         assert C_zx.shape[1] == C_zx.shape[2]
         C_nr = self.output_noise ** 2 * torch.eye(C_zx.shape[-1], device=image.device)
         C_zx += C_nr
-        C_z = self.matrix_spatiotemporal(self.data_covariance + C_nx, gain, cov = True)
+        C_z = self.matrix_spatiotemporal(self.data_covariance + C_nx, gain, cov = True, record_C = True)
         C_z += C_nr
+        
+    
+        self.C_z, self.C_zx = torch.mean(C_z,dim= 0), torch.mean(C_zx,dim = 0)
         
         
         return z, r, C_z, C_zx
@@ -215,10 +220,8 @@ class OutputMetrics(object):
     def final_loss(self, firing_restriction):
         if firing_restriction == "Lagrange":
             return self.loss.mean() + self.linear_penalty + self.quadratic_penalty
-        elif firing_restriction == "Gamma":
-            return self.loss.mean()
         else:
-            raise Exception("Firing restriction has to be either Lagrange or Gamma")
+            return self.loss.mean()
     
     def return_h(self):
         return self.h
@@ -243,21 +246,17 @@ class OutputTerms(object):
             target = eval(target)
         else:
             target = float(target)
-        if firing_restriction == "Lagrange" or firing_restriction == "None":
-            if self.model.Lambda.shape[0] == 1:
-                h = self.r.sub(target).mean()  # the equality constraint
-            else:
-                h = self.r.sub(target).mean(dim=0)  # the equality constraint
-        elif firing_restriction == "Gamma":
-            if self.model.Lambda.shape[0] == 1:
-                h = self.r.mean()  # the equality constraint
-            else:
-                h = self.r.mean(dim=0)  # the equality constraint
-            
+        
+        if self.model.Lambda.shape[0] == 1:
+            h = self.r.sub(target).mean()  # the equality constraint
+        else:
+            h = self.r.sub(target).mean(dim=0)  # the equality constraint
+        
+
         if firing_restriction == "Lagrange":
             linear_penalty = (self.model.Lambda * h).sum()
             quadratic_penalty = self.model.rho / 2 * (h ** 2).sum()
-        elif firing_restriction == "Gamma" or firing_restriction == "None":
+        else:
             linear_penalty = 0
             quadratic_penalty = 0
 
@@ -295,12 +294,12 @@ class RetinaVAE(nn.Module):
 
         self.Lambda = nn.Parameter(torch.rand(neurons))
 
-    def forward(self, x, h_exp, firing_restriction) -> OutputTerms:
+    def forward(self, x, h_exp, firing_restriction, record_C = False) -> OutputTerms:
         batch_size = x.shape[0]
         x = x.view(batch_size, -1, self.D)  # x.shape = [B, L, D] (L: input time points)
         
         o = OutputTerms(self)
-        o.z, o.r, numerator, denominator = self.encoder(x, h_exp, firing_restriction)
+        o.z, o.r, numerator, denominator = self.encoder(x, h_exp, firing_restriction, record_C = record_C)
 
         if numerator is not None:
             L_numerator = numerator.cholesky()
