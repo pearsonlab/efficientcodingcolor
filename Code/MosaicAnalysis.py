@@ -47,6 +47,11 @@ import cv2
 save = '240107-204731' #SGD, lagrange
 #save = '240108-090323' #SGD, Gamma
 
+
+save = '240117-114908' #Gamma with gradient descent 
+
+save ='240122-000845'
+
 path = "../../saves/" + save + "/"
 
 class Analysis():
@@ -728,6 +733,6 @@ def make_video(video_name):
     
 
 test = Analysis(path)
-#test()
-#test2 = Analysis_time(path)
+test()
+#test_all = Analysis_time(path)
 #test2.make_mosaic_images()
