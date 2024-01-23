@@ -36,14 +36,14 @@ def set_seed(seed=None, seed_torch=True):
 
 
 def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S"),
-          iterations: int = 1_000_000,
+          iterations: int = 2_000_000,
           #iterations: int = 3,
           batch_size: int = 128,
           data: str = "imagenet",
           kernel_size: int = 18,
           circle_masking: bool = True,
           dog_prior: bool = False,
-          neurons: int = 100,  # number of neurons, J
+          neurons: int = 300,  # number of neurons, J
           jittering_start: Optional[int] = 300000, #originally 200000
           jittering_stop: Optional[int] = 500000, #originally 500000
           jittering_interval: int = 5000,
@@ -55,11 +55,11 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           output_noise: float = 3.0,
           nonlinearity: str = "softplus",
           beta: float = -0.5,
-          n_colors = 1,
-          shape: Optional[str] = None, # "difference-of-gaussian" for Oneshape case #BUG: Can't use color 1 with "difference-of-gaussian"
+          n_colors = 3,
+          shape: Optional[str] = "difference-of-gaussian", # "difference-of-gaussian" for Oneshape case #BUG: Can't use color 1 with "difference-of-gaussian"
           individual_shapes: bool = True,  # individual size of the RFs can be different for the Oneshape case
           optimizer: str = "sgd",  # can be "adam"
-          learning_rate: float = 0.001, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
+          learning_rate: float = 0.01, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
           rho: float = 1,
           maxgradnorm: float = 20.0,
           load_checkpoint: str = None, #"230705-141246",  # checkpoint file to resume training from
@@ -67,7 +67,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           n_mosaics = 10,
           whiten_pca_ratio = None,
           device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
-          firing_restriction = "Two_losses",
+          firing_restriction = "Lagrange",
           FR_learning_rate = 0.01): #"Lagrange" or "Gamma" or "None" or "Two_losses"
 
     train_args = deepcopy(locals())  # keep all arguments as a dictionary
@@ -176,25 +176,24 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
                 loss_MI = loss_MI + centering_weight * kernel_variance.mean()
             
             optimizer_MI.zero_grad()
-            if iteration%2 == 0:
-                if firing_restriction == "Two_losses": 
-                    optimizer_FR.zero_grad()
-                    loss_FR.backward(retain_graph = True)
-                    optimizer_FR.step()
-                    optimizer_FR.zero_grad()
-            else:
-                loss_MI.backward(retain_graph=True)
-                param_norm = torch.cat([param.data.flatten() for param in model.parameters()]).norm()
-                grad_norm = torch.cat(
-                    [param.grad.data.flatten() for param in model.parameters() if param.grad is not None]).norm()
-                if firing_restriction == "Lagrange":
-                    model.Lambda.grad.neg_()
-    
-                if maxgradnorm:
-                    torch.nn.utils.clip_grad_norm_(all_params, maxgradnorm)
-                
-                optimizer_MI.step()
-                #optimizer_MI.zero_grad()
+            if firing_restriction == "Two_losses": 
+                optimizer_FR.zero_grad()
+                loss_FR.backward(retain_graph = True)
+                optimizer_FR.step()
+                optimizer_FR.zero_grad()
+        
+            loss_MI.backward(retain_graph=True)
+            param_norm = torch.cat([param.data.flatten() for param in model.parameters()]).norm()
+            grad_norm = torch.cat(
+                [param.grad.data.flatten() for param in model.parameters() if param.grad is not None]).norm()
+            if firing_restriction == "Lagrange":
+                model.Lambda.grad.neg_()
+
+            if maxgradnorm:
+                torch.nn.utils.clip_grad_norm_(all_params, maxgradnorm)
+            
+            optimizer_MI.step()
+            #optimizer_MI.zero_grad()
             
             
             
@@ -231,10 +230,16 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
             if iteration % 1000 == 0 or iteration == 1:
                 W = model.encoder.W.detach().cpu().numpy()
                 for param in model.parameters():
+                    print(param.shape)
                     if (np.array(param.shape) == [kernel_size*kernel_size*n_colors, neurons]).all():
                         W_grad = param.grad.detach().cpu().numpy()
                 writer.add_image('kernels', kernel_images(W, kernel_size, image_channels = model.encoder.image_channels), iteration)
-                writer.add_image('W_grad', kernel_images(W_grad, kernel_size, image_channels = model.encoder.image_channels), iteration)
+<<<<<<< HEAD
+                if shape is None:
+                    writer.add_image('W_grad', kernel_images(W_grad, kernel_size, image_channels = model.encoder.image_channels), iteration)
+=======
+                #writer.add_image('W_grad', kernel_images(W_grad, kernel_size, image_channels = model.encoder.image_channels), iteration)
+>>>>>>> 22123c25a95e6d533475188cf73bdd9824cce3a5
                 writer.add_image('MI_numerator', C_z_estimate/1000, iteration, dataformats="HW")
                 writer.add_image('MI_denominator', C_zx_estimate/1000, iteration, dataformats="HW")
                 writer.add_image('WCxW', model.encoder.WCxW, iteration, dataformats = "HW")
@@ -252,31 +257,17 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
 
                 gain = model.encoder.logA.detach().exp().cpu().numpy()
                 writer.add_histogram("histogram/gain", gain, iteration, bins=100)
-
                 bias = model.encoder.logB.detach().exp().cpu().numpy()
                 writer.add_histogram("histogram/bias", bias, iteration, bins=100)
                 if hasattr(model.encoder, "shape_function"):
-                    if isinstance(model.encoder.shape_function, nn.ModuleList):
-                        a = torch.cat([shape.a for shape in model.encoder.shape_function])
-                    else:
-                        a = model.encoder.shape_function.a
-                    writer.add_histogram("histogram/diffgaussian_a", a, iteration, bins=100)
+                    if hasattr(model.encoder.shape_function, "a"):
+                        writer.add_histogram("histogram/diffgaussian_a", model.encoder.shape_function.a, iteration, bins=100)
                     if hasattr(model.encoder.shape_function, "b"):
-                        if isinstance(model.encoder.shape_function, nn.ModuleList):
-                            b = torch.cat([shape.b for shape in model.encoder.shape_function])
-                        else:
-                            b = model.encoder.shape_function.b
-                        writer.add_histogram("histogram/diffgaussian_b", b, iteration, bins=100)
-                #if hasattr(model.encoder, "shape_function"):
-                #    if isinstance(model.encoder.shape_function, HexagonalGrid):
-                #        a = np.array([shape.a.item() for shape in model.encoder.shape_function.shape])
-                #        writer.add_histogram("histogram/gaussian_a", a, iteration, bins=100)
-                #    else:
-                #        a = model.encoder.shape_function.a
-                #        writer.add_histogram("histogram/diffgaussian_a", a, iteration, bins=100)
-                #        if hasattr(model.encoder.shape_function, "b"):
-                #            b = model.encoder.shape_function.b
-                #            writer.add_histogram("histogram/diffgaussian_b", b, iteration, bins=100)
+                        writer.add_histogram("histogram/diffgaussian_b", model.encoder.shape_function.b, iteration, bins=100)
+                    if hasattr(model.encoder.shape_function, "c"):
+                        writer.add_histogram("histogram/diffgaussian_c", model.encoder.shape_function.a, iteration, bins=100)
+                    if hasattr(model.encoder.shape_function, "d"):
+                        writer.add_histogram("histogram/diffgaussian_d", model.encoder.shape_function.a, iteration, bins=100)
             
             if iteration % 1000 == 0:
                 to_ignore = ["data_covariance", "sigma_prime"]

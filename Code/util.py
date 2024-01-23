@@ -23,7 +23,7 @@ def kernel_images(W, kernel_size, image_channels=1, rows=None, cols=None, spacin
     W /= np.linalg.norm(W, axis=0, keepdims=True)
     W = W.reshape(image_channels, -1, W.shape[-1])
 
-    if rows is None:
+    if rows is None:    
         rows = int(np.ceil(math.sqrt(W.shape[-1])))
     if cols is None:
         cols = int(np.ceil(W.shape[-1] / rows))

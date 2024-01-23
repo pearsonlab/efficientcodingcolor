@@ -175,8 +175,10 @@ class Encoder(nn.Module):
         #(y = input @ self.w from spatiotemporal) would have consistent dimensions. 
         image_nx = image + nx
         self.test_counter = self.test_counter + 1
+<<<<<<< HEAD
+=======
         
-        print(image_nx.shape, "shape image_nx")
+>>>>>>> 22123c25a95e6d533475188cf73bdd9824cce3a5
         image_nx = image_nx.flatten(1,2)
         #image_nx = image_nx.reshape([25,L*D]) #This is buggy, flattening is much better
 
