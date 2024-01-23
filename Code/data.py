@@ -53,7 +53,6 @@ class KyotoNaturalImages(Dataset):
         self.n_colors = n_colors
         
         images = []
-        
         for file in tqdm(files):
             if file.endswith('.mat'):
                 #David: Combined the responses from the three different cones into a single image array
@@ -75,9 +74,10 @@ class KyotoNaturalImages(Dataset):
                 else:
                     Exception("You can only have 1 or 3 colors")
                 #image = np.tensordot(pca_comps, image, axes = 1)
+                
             else:
                 image = np.array(Image.open(os.path.join(root, file)).convert('L')).astype(np.float)
-
+                
             std = np.std(image)
             if std < 1e-4:
                 continue
