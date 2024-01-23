@@ -36,7 +36,7 @@ def set_seed(seed=None, seed_torch=True):
 
 
 def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S"),
-          iterations: int = 2_000_000,
+          iterations: int = 3_000_000,
           #iterations: int = 3,
           batch_size: int = 128,
           data: str = "imagenet",
@@ -121,6 +121,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
     else:
         optimizer_MI = optimizer_class([model.encoder.W], **optimizer_kwargs_MI)
         optimizer_FR = optimizer_class([model.encoder.logA, model.encoder.logB], **optimizer_kwargs_FR)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_MI, mode='min', 
+                factor=0.5, patience=500, threshold=0.0001, threshold_mode='rel', cooldown=10, min_lr=0, eps=1e-08, verbose=True)
     
     
     
@@ -160,8 +162,6 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
             batch = next(data_iterator).to(device)
             
             torch.manual_seed(iteration)
-            if firing_restriction != "Gamma":
-                h_exp = torch.zeros(1, device = "cuda")
             output: OutputTerms = model(batch, h_exp, firing_restriction, record_C = record_C) #This is the line where forward gets called
             metrics: OutputMetrics = output.calculate_metrics(iteration, firing_restriction)
             h_current = metrics.return_h().detach()
@@ -193,6 +193,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
                 torch.nn.utils.clip_grad_norm_(all_params, maxgradnorm)
             
             optimizer_MI.step()
+            if iteration > 10000:
+                scheduler.step(loss_MI)
             #optimizer_MI.zero_grad()
             
             
@@ -230,16 +232,12 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
             if iteration % 1000 == 0 or iteration == 1:
                 W = model.encoder.W.detach().cpu().numpy()
                 for param in model.parameters():
-                    print(param.shape)
                     if (np.array(param.shape) == [kernel_size*kernel_size*n_colors, neurons]).all():
                         W_grad = param.grad.detach().cpu().numpy()
                 writer.add_image('kernels', kernel_images(W, kernel_size, image_channels = model.encoder.image_channels), iteration)
-<<<<<<< HEAD
                 if shape is None:
                     writer.add_image('W_grad', kernel_images(W_grad, kernel_size, image_channels = model.encoder.image_channels), iteration)
-=======
-                #writer.add_image('W_grad', kernel_images(W_grad, kernel_size, image_channels = model.encoder.image_channels), iteration)
->>>>>>> 22123c25a95e6d533475188cf73bdd9824cce3a5
+
                 writer.add_image('MI_numerator', C_z_estimate/1000, iteration, dataformats="HW")
                 writer.add_image('MI_denominator', C_zx_estimate/1000, iteration, dataformats="HW")
                 writer.add_image('WCxW', model.encoder.WCxW, iteration, dataformats = "HW")
