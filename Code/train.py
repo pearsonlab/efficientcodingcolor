@@ -234,12 +234,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
                     if (np.array(param.shape) == [kernel_size*kernel_size*n_colors, neurons]).all():
                         W_grad = param.grad.detach().cpu().numpy()
                 writer.add_image('kernels', kernel_images(W, kernel_size, image_channels = model.encoder.image_channels), iteration)
-<<<<<<< HEAD
                 if shape is None:
                     writer.add_image('W_grad', kernel_images(W_grad, kernel_size, image_channels = model.encoder.image_channels), iteration)
-=======
-                #writer.add_image('W_grad', kernel_images(W_grad, kernel_size, image_channels = model.encoder.image_channels), iteration)
->>>>>>> 22123c25a95e6d533475188cf73bdd9824cce3a5
                 writer.add_image('MI_numerator', C_z_estimate/1000, iteration, dataformats="HW")
                 writer.add_image('MI_denominator', C_zx_estimate/1000, iteration, dataformats="HW")
                 writer.add_image('WCxW', model.encoder.WCxW, iteration, dataformats = "HW")
