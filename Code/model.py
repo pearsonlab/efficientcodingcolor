@@ -99,6 +99,7 @@ class Encoder(nn.Module):
         return y
 
     def matrix_spatiotemporal(self, input: torch.Tensor, gain: torch.Tensor, cov = False, record_C = False):
+        print(gain.shape, "gain shape")
         # compute C_rx in VAE note page 8.
         # input.shape = [LD, LD], gain.shape = [1 or B, T or 1, J]
         assert input.ndim == 2 and input.shape[0] == input.shape[1]
@@ -107,28 +108,16 @@ class Encoder(nn.Module):
         J = self.J
         #L = 3, D = 324, J = 100
         
-        
         #David: I permuted x multiple once so the tensor multiplication 
         #(y = input @ self.w from spatiotemporal) would have consistent dimensions. 
         
-        
-        x = input.reshape(L * D, 1, L*D)         # shape = [LD, L, D]
+        x = input
         x = self.spatiotemporal(x)             # shape = [D, 1, J] or [LD, T, J]
-        x = x.permute(1, 2, 0)                 # shape = [1, J, D] or [T, J, LD]
-        x = x.reshape(-1, L, D)                # shape = [J, 1, D] or [TJ, L, D]
+        x = x.permute(1, 0)                 # shape = [1, J, D] or [T, J, LD]
         output_dim = x.shape[0]
-        print(x.shape, "1")
-        if D > 1: #edit 1/3/2024
-            x = x.reshape(J, 1, L*D) #I did so here. IMPORTANT: Need to put this line for more than 1 channel :)
-        print(x.shape, "2")
         x = self.spatiotemporal(x)             # shape = [J, 1, J] or [TJ, T, J]
-        print(x.shape, "3")
-        x = x.flatten(start_dim=1)             # shape = [J, J]    or [TJ, TJ]
-        #if cov == False:
-        #x = x.reshape(J, J) #David: and here
         if record_C:
             self.WCxW = x
-        print(x.shape, '4')
         #David: gain.shape = [3,100,100]
         G = gain.reshape(-1, output_dim)       # shape = [1 or B, J] or [1 or B, TJ]
         #David: G.shape = [100,100]
