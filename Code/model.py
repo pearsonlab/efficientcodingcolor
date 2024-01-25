@@ -117,16 +117,18 @@ class Encoder(nn.Module):
         x = x.permute(1, 2, 0)                 # shape = [1, J, D] or [T, J, LD]
         x = x.reshape(-1, L, D)                # shape = [J, 1, D] or [TJ, L, D]
         output_dim = x.shape[0]
-        #if cov == False:
-        #x = torch.swapaxes(x, 1, 2) #edit 1/3/2024. Meant to fix the fact that unparametrized doesn't work... it doesn't fix it
+        print(x.shape, "1")
         if D > 1: #edit 1/3/2024
             x = x.reshape(J, 1, L*D) #I did so here. IMPORTANT: Need to put this line for more than 1 channel :)
+        print(x.shape, "2")
         x = self.spatiotemporal(x)             # shape = [J, 1, J] or [TJ, T, J]
+        print(x.shape, "3")
         x = x.flatten(start_dim=1)             # shape = [J, J]    or [TJ, TJ]
         #if cov == False:
         #x = x.reshape(J, J) #David: and here
         if record_C:
             self.WCxW = x
+        print(x.shape, '4')
         #David: gain.shape = [3,100,100]
         G = gain.reshape(-1, output_dim)       # shape = [1 or B, J] or [1 or B, TJ]
         #David: G.shape = [100,100]

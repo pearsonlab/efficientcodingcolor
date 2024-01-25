@@ -18,7 +18,6 @@ u = torch.tensor([1.0,1.5], requires_grad = False)
 def forward(x):
     return torch.exp(-torch.matmul(torch.matmul(x-u,cov),x-u))
 
-#z.requires_grad = True
 optimizer = torch.optim.SGD([x1,x2], lr = 0.01)
 optimizer2 = torch.optim.SGD([x2], lr = 0.2)
 for i in range(1000):
