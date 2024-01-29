@@ -36,26 +36,26 @@ def set_seed(seed=None, seed_torch=True):
 
 
 def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S"),
-          iterations: int = 1_000_000,
+          iterations: int = 3_000_000,
           #iterations: int = 3,
           batch_size: int = 128,
           data: str = "imagenet",
           kernel_size: int = 18,
           circle_masking: bool = True,
           dog_prior: bool = False,
-          neurons: int = 100,  # number of neurons, J
-          jittering_start: Optional[int] = 300000, #originally 200000
-          jittering_stop: Optional[int] = 500000, #originally 500000
+          neurons: int = 300,  # number of neurons, J
+          jittering_start: Optional[int] = 500000, #originally 200000
+          jittering_stop: Optional[int] = 800000, #originally 500000
           jittering_interval: int = 5000,
           jittering_power: float = 0.25,
           centering_weight: float = 0.02,
-          centering_start: Optional[int] = 300000, #originally 200000
-          centering_stop: Optional[int] = 500000, #originally 500000
+          centering_start: Optional[int] = 500000, #originally 200000
+          centering_stop: Optional[int] = 800000, #originally 500000
           input_noise: float = 0.4,
           output_noise: float = 3.0,
           nonlinearity: str = "softplus",
           beta: float = -0.5,
-          n_colors = 1,
+          n_colors = 3,
           shape: Optional[str] = None, # "difference-of-gaussian" for Oneshape case #BUG: Can't use color 1 with "difference-of-gaussian"
           individual_shapes: bool = True,  # individual size of the RFs can be different for the Oneshape case
           optimizer: str = "sgd",  # can be "adam"
