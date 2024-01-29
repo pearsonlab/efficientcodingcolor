@@ -68,7 +68,10 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           whiten_pca_ratio = None,
           device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
           firing_restriction = "Lagrange",
-          FR_learning_rate = 0.01): #"Lagrange" or "Gamma" or "None" or "Two_losses"
+          FR_learning_rate = 0.01,
+          LR_patience = 50000,
+          LR_cooldown = 100000,
+          LR_ratio = 0.5): #"Lagrange" or "Gamma" or "None" or "Two_losses"
 
     train_args = deepcopy(locals())  # keep all arguments as a dictionary
     for arg in sys.argv:
@@ -121,7 +124,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
         optimizer_MI = optimizer_class([model.encoder.W], **optimizer_kwargs_MI)
         optimizer_FR = optimizer_class([model.encoder.logA, model.encoder.logB], **optimizer_kwargs_FR)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_MI, mode='min', 
-                factor=0.5, patience=500, threshold=0.0001, threshold_mode='rel', cooldown=10, min_lr=0, eps=1e-08, verbose=True)
+                factor=LR_ratio, patience=LR_patience, threshold=0.0001, threshold_mode='rel', cooldown=LR_cooldown, min_lr=0, eps=1e-08, verbose=True)
     
     
     
