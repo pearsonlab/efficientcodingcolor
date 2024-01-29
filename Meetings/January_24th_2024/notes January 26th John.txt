@@ -1,0 +1,5 @@
+- Look at both numerator and denominator determinants
+Plot these determinants over epochs
+
+- Compute W^T W manually instead of doing it with pytorch 
+

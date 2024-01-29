@@ -29,30 +29,15 @@ import scipy.optimize as opt
 import cv2
 
 
-#save = '230625-235533' #Loos nice, 300 neurons
-#save = '230705-141246' #500 neurons 12x12x3
-#save = '230813-224700' #500 neurons 12x12x3 but [50,30,20] color pca split. David's old method
-#save = '230821-024538' #500 neurons 12x12x3 but [50,30,20] color pca split. John's method 
-#save = '230825-143401' #Fixed kernel centers
-#save = '230828-152654' #500 neurons x12x12x3 but [80,15,5] pca split
-
-#save = '231130-033618' #New firing restriction by changing Gamma! Efficient-image 
-#save = '231130-233607' #No firing restriction. Efficient-image
-
-#save = '231201-072752'
-#save = '240102-143133' #Test 1 color 18x18 with Lagrange to check it works properly
-#save = '240103-085040' #Uh same but I tried to fix it by changing how matrix_spatiotemporal works. It does not work at all
-
-
-save = '240107-204731' #SGD, lagrange
+#save = '240107-204731' #SGD, lagrange
 #save = '240108-090323' #SGD, Gamma
 
 
-save = '240117-114908' #Gamma with gradient descent 
+#save = '240117-114908' #Gamma with gradient descent 
 
-save ='240122-000845'
+save ='240122-000845' #SGD, Lagrange, keep track of cov matrices and gradient
 
-path = "../../saves/" + save + "/"
+path = "../../saves/" + save + "/" 
 
 class Analysis():
         def __init__(self, path, epoch = None):

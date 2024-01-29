@@ -99,7 +99,6 @@ class Encoder(nn.Module):
         return y
 
     def matrix_spatiotemporal(self, input: torch.Tensor, gain: torch.Tensor, cov = False, record_C = False):
-        print(gain.shape, "gain shape")
         # compute C_rx in VAE note page 8.
         # input.shape = [LD, LD], gain.shape = [1 or B, T or 1, J]
         assert input.ndim == 2 and input.shape[0] == input.shape[1]
@@ -110,9 +109,8 @@ class Encoder(nn.Module):
         
         #David: I permuted x multiple once so the tensor multiplication 
         #(y = input @ self.w from spatiotemporal) would have consistent dimensions. 
-        
-        x = input
-        x = self.spatiotemporal(x)             # shape = [D, 1, J] or [LD, T, J]
+        #print(f"shape input = {input.shape}")
+        x = self.spatiotemporal(input)             # shape = [D, 1, J] or [LDprint(), T, J]
         x = x.permute(1, 0)                 # shape = [1, J, D] or [T, J, LD]
         output_dim = x.shape[0]
         x = self.spatiotemporal(x)             # shape = [J, 1, J] or [TJ, T, J]
@@ -120,9 +118,9 @@ class Encoder(nn.Module):
             self.WCxW = x
         #David: gain.shape = [3,100,100]
         G = gain.reshape(-1, output_dim)       # shape = [1 or B, J] or [1 or B, TJ]
-        #David: G.shape = [100,100]
+ 
         x = G[:, :, None] * x * G[:, None, :]  # shape = [1 or B, J, J] or [1 or B, TJ, TJ]
-        #David: x.shape = [100,100,100]
+        
         return x  # this is C_rx
     
         def make_kernel_centers(self):

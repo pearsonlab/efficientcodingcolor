@@ -36,14 +36,14 @@ def set_seed(seed=None, seed_torch=True):
 
 
 def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S"),
-          iterations: int = 3_000_000,
+          iterations: int = 1_000_000,
           #iterations: int = 3,
           batch_size: int = 128,
           data: str = "imagenet",
           kernel_size: int = 18,
           circle_masking: bool = True,
           dog_prior: bool = False,
-          neurons: int = 300,  # number of neurons, J
+          neurons: int = 100,  # number of neurons, J
           jittering_start: Optional[int] = 300000, #originally 200000
           jittering_stop: Optional[int] = 500000, #originally 500000
           jittering_interval: int = 5000,
@@ -55,8 +55,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           output_noise: float = 3.0,
           nonlinearity: str = "softplus",
           beta: float = -0.5,
-          n_colors = 3,
-          shape: Optional[str] = "difference-of-gaussian", # "difference-of-gaussian" for Oneshape case #BUG: Can't use color 1 with "difference-of-gaussian"
+          n_colors = 1,
+          shape: Optional[str] = None, # "difference-of-gaussian" for Oneshape case #BUG: Can't use color 1 with "difference-of-gaussian"
           individual_shapes: bool = True,  # individual size of the RFs can be different for the Oneshape case
           optimizer: str = "sgd",  # can be "adam"
           learning_rate: float = 0.01, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
@@ -89,7 +89,6 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
     data_covariance = dataset.covariance()
     data_loader = DataLoader(dataset, batch_size)
     data_iterator = cycle(data_loader)
-    global model_args
     model_args = dict(
         kernel_size=kernel_size,
         neurons=neurons,
@@ -193,15 +192,9 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
                 torch.nn.utils.clip_grad_norm_(all_params, maxgradnorm)
             
             optimizer_MI.step()
-            if iteration > 10000:
+            if iteration > 100000:
                 scheduler.step(loss_MI)
             #optimizer_MI.zero_grad()
-            
-            
-            
-            
-            
-            
             
             model.encoder.normalize()
             
@@ -283,6 +276,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
                 for key, value in to_restore.items():
                     model.encoder.register_buffer(key, value, persistent=False)
                 
+                MI_matrices = torch.stack([C_z_estimate, C_zx_estimate])
+                
                 torch.save(dict(
                     iteration=iteration,
                     args=train_args,
@@ -290,6 +285,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
                     model_state_dict=model.state_dict(),
                     optimizer_state_dict=optimizer_MI.state_dict(),
                     weights= model.encoder.W,
+                    MI_matrices = MI_matrices,
+                    
                 ), cp_save)
             
             writer.flush()
