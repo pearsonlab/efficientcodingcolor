@@ -37,6 +37,11 @@ import cv2
 
 save ='240122-000845' #SGD, Lagrange, keep track of cov matrices and gradient
 
+save = '240126-142927'# 100x100 Lagrange
+
+save = '240125-183448'
+#save = '240129-142655' #Patience okat but no DoG parametrization
+
 path = "../../saves/" + save + "/" 
 
 class Analysis():
@@ -196,7 +201,7 @@ class Analysis():
             self.type = gauss.predict(X)
             
         
-        def make_mosaic_DoG(self, t = 'last', n_plots = 1, plot_size = False, save_fig = False):
+        def make_mosaic_DoG(self, mosaic_type,  t = 'last', n_plots = 1, plot_size = False, save_fig = False):
             if save_fig:
                 matplotlib.use('agg')
                 Videos_folder = '../Videos/' + save 
@@ -231,7 +236,7 @@ class Analysis():
                 ax.set_title('Mosaic of ' + lms_str[color], size = 12)
                 ax.set_yticklabels([])
                 ax.set_xticklabels([])
-                for n in range(self.n_neurons):
+                for n in range(kernel_centers.shape[0]):
                     #if self.pathway[n] == 'ON':
                     #    marker = 'x'
                     #elif self.pathway[n] == 'OFF':
@@ -242,7 +247,8 @@ class Analysis():
                     x = kernel_centers[n, 0]
                     y = kernel_centers[n, 1]
                     #if self.type[n] == 'white' or self.type[n] == 'black':
-                    ax.plot(x, y, marker = marker, markersize = 6, color = 'white')
+                    if self.type[n] == mosaic_type:
+                        ax.plot(x, y, marker = marker, markersize = 12, color = 'white')
 
                     if plot_size and self.all_params is not None:
                         
@@ -345,14 +351,14 @@ class Analysis():
             azims = np.array(range(0,180,1))
             alts = np.array(range(30,90,1))
             alt = 30
-            Videos_folder = 'Videos/' + save
+            Videos_folder = '../Videos/' + save
             matplotlib.use('agg')
             count = 0
             if not os.path.exists(Videos_folder):
                 os.mkdir(Videos_folder)
             for azim in azims:
                 ax = self.plot3D(params, angles = (alt, azim), title = title, color_type = color_type, labels = labels, ellipse = ellipse)
-                plt.savefig('Videos/' + save + '/' + filename + '_' + str(count) + '.png')
+                plt.savefig('../Videos/' + save + '/' + filename + '_' + str(count) + '.png')
                 count = count + 1
                 plt.close()
                 if special_command is not None:
@@ -361,7 +367,7 @@ class Analysis():
                 ax = self.plot3D(params, angles = (alt, azim), title = title, color_type = color_type, labels = labels, ellipse = ellipse)
                 if special_command is not None:
                     exec(special_command)
-                plt.savefig('Videos/' + save + '/' + filename + '_' + str(count) + '.png')
+                plt.savefig('../Videos/' + save + '/' + filename + '_' + str(count) + '.png')
                 count = count + 1
                 plt.close()
                 
@@ -558,7 +564,7 @@ class Analysis():
             fig.supxlabel('Radial distance from center (pixels)', y = 0.05, size = 24)
             fig.supylabel('Weight', x = 0.07, size = 24)
             
-        def pca_radial_average(self, n_comp = 4, plot = True):
+        def pca_radial_average(self, n_comp = 3, plot = True):
             colors = ['black', 'blue', 'orange', 'red', 'yellow']
             if not hasattr(self, 'rad_avg'):
                 self.radial_averages()
@@ -620,7 +626,7 @@ class Analysis():
             self.RF_size = new_size
             self.RF_centers = self.kernel_centers * (self.RF_size/self.kernel_size)
             self.centers_round = np.clip(round_kernel_centers(self.RF_centers), 0, self.RF_size -1)
-            self.center_colors = self.W[:,self.centers_round[:,0], self.centers_round[:,1]]
+            self.center_colors = self.W[:,self.centers_round[:,0], self.centers_round[:,1],:]
             
             
         def make_RF_from_pca(self):
@@ -653,13 +659,13 @@ class Analysis():
         def __call__(self):
             plt.close('all')
             #self.get_params_time()
-            #self.increase_res(100, norm_size = True)
+            self.increase_res(100, norm_size = True)
             
             #self.kernels_image = self.make_kernels_image(self.w, n_neurons = 50)
-            #self.radial_averages(15)
-            #self.pca_radial_average(plot = False)
-            #self.make_RF_from_pca()
-            #self.get_pathways()
+            self.radial_averages(15)
+            self.pca_radial_average(plot = False)
+            self.make_RF_from_pca()
+            self.get_pathways()
             
             #self.neighbors = self.return_neighbors(self.kernel_centers, check_same_pathway = True)
             #self.get_responses()
@@ -670,14 +676,15 @@ class Analysis():
             matplotlib.use("Qtagg")
 
 class Analysis_time():
-    def __init__(self, path):
-        self.interval = 1000
+    def __init__(self, path, interval = 1000):
+        self.interval = interval
         last_cp_file = find_last_cp(path)
         last_model_file = find_last_model(path) 
         self.max_iteration = int(last_cp_file[11:-3])
         self.iterations = np.array(range(self.interval,self.max_iteration + self.interval,self.interval))
         self.n_analyses = int(self.max_iteration/self.interval)
         all_analyses = []
+
         for iteration in self.iterations:
             all_analyses.append(Analysis(path, epoch = iteration))
             if iteration%100000 == 0:
@@ -689,6 +696,21 @@ class Analysis_time():
             self.analyses[n].make_mosaic_DoG(save_fig = True)
             if n%100 == 0:
                 print(n, ' center mosaic')
+                
+    def epoch_metrics(self):
+        det_nums = []
+        det_denums = []
+        i = 0
+        for iteration in self.iterations:
+            num = self.analyses[i].model.encoder.C_z.detach().cpu().numpy()
+            denum = self.analyses[i].model.encoder.C_zx.detach().cpu().numpy()
+            det_nums.append(np.linalg.det(num))
+            det_denums.append(np.linalg.det(denum))
+            i += 1
+        
+        self.det_nums = det_nums
+        self.det_denums = det_denums
+            
                 
     #eg: "center_mosaic.mp4" or "center_mosaic.avi"
 def make_video(video_name):
@@ -719,5 +741,6 @@ def make_video(video_name):
 
 test = Analysis(path)
 test()
-#test_all = Analysis_time(path)
+#test_all = Analysis_time(path, interval = 50000)
+#test_all.epoch_metrics()
 #test2.make_mosaic_images()

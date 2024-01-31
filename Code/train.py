@@ -56,7 +56,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           nonlinearity: str = "softplus",
           beta: float = -0.5,
           n_colors = 3,
-          shape: Optional[str] = None, # "difference-of-gaussian" for Oneshape case #BUG: Can't use color 1 with "difference-of-gaussian"
+          shape: Optional[str] = "difference-of-gaussian", # "difference-of-gaussian" for Oneshape case #BUG: Can't use color 1 with "difference-of-gaussian"
           individual_shapes: bool = True,  # individual size of the RFs can be different for the Oneshape case
           optimizer: str = "sgd",  # can be "adam"
           learning_rate: float = 0.01, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
@@ -69,8 +69,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
           firing_restriction = "Lagrange",
           FR_learning_rate = 0.01,
-          LR_patience = 50000,
-          LR_cooldown = 100000,
+          LR_patience = 100000,
+          LR_cooldown = 500000,
           LR_ratio = 0.5): #"Lagrange" or "Gamma" or "None" or "Two_losses"
 
     train_args = deepcopy(locals())  # keep all arguments as a dictionary
@@ -147,7 +147,9 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
 
     kernel_norm_penalty = 0
     h_exp = torch.ones([neurons], device = "cuda")
-
+    patience = 0
+    cooldown_timer = 0
+    
     model.train()
     C_z_estimate = torch.zeros([neurons, neurons], device = 'cpu') #Crashes if saved on gpu
     C_zx_estimate = torch.zeros([neurons,neurons], device = 'cpu')
@@ -161,6 +163,9 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
             if iteration in jittering_iterations:
                 model.encoder.jitter_kernels(jittering_power)
             
+            cooldown_timer += 1
+            if cooldown_timer > LR_cooldown:
+                patience += 1
             batch = next(data_iterator).to(device)
             
             torch.manual_seed(iteration)
@@ -171,6 +176,26 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
             effective_count = neurons
             
             loss_MI = metrics.final_loss(firing_restriction) + kernel_norm_penalty
+            if iteration == 1:
+                loss_smooth = loss_MI.detach().cpu()
+                best_loss_smooth = loss_smooth
+                
+            else:
+                loss_smooth = 0.999*loss_smooth + 0.001*loss_MI.detach().cpu()
+            if loss_smooth > best_loss_smooth:
+                best_loss_smooth = loss_smooth.clone()
+                patience = 0
+                print('You just beat me!')
+            
+            if patience > LR_patience:
+                for g in optimizer_MI.param_groups:
+                    g['lr'] = g['lr']/2
+                    print("Reduced LR to:", g['lr']/2)
+                    print(loss_smooth, best_loss_smooth)
+                    patience = 0
+                    cooldown_timer = 0
+                
+                
             loss_FR = torch.sum(metrics.return_h()**2)
             kernel_variance = model.encoder.kernel_variance()
             
