@@ -31,7 +31,7 @@ class Shape(nn.Module):
     def forward(self, kernel_centers, kernel_polarities = None, normalize=True):
         kernel_x = kernel_centers[:, 0]
         kernel_y = kernel_centers[:, 1]
-
+        #print(kernel_x.device, self.grid_x.device, "Here I am!")
         dx = kernel_x[None, :] - self.grid_x[:, None]
         dy = kernel_y[None, :] - self.grid_y[:, None]
 

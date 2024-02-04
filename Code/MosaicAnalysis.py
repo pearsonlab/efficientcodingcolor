@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 import torch
+from torch import nn
 import pandas as pd
 from numpy.linalg import norm
 from analysis_utils import find_last_cp, find_last_model, reshape_flat_W, round_kernel_centers, scale, get_matrix, make_rr
@@ -21,6 +22,7 @@ from scipy.stats import pearsonr
 import seaborn as sns
 from sklearn.decomposition import PCA
 import shapes
+#from shapes import get_shape_module, Shape
 from matplotlib.patches import Rectangle
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
@@ -35,12 +37,12 @@ import cv2
 
 #save = '240117-114908' #Gamma with gradient descent 
 
-save ='240122-000845' #SGD, Lagrange, keep track of cov matrices and gradient
+#save ='240122-000845' #SGD, Lagrange, keep track of cov matrices and gradient
 
-save = '240126-142927'# 100x100 Lagrange
+#save = '240126-142927'# 100x100 Lagrange
 
-save = '240125-183448'
-#save = '240129-142655' #Patience okat but no DoG parametrization
+#save = '240125-183448' #DoG parametrization, no patience
+save = '240129-142655' #Patience okat but no DoG parametrization
 
 path = "../../saves/" + save + "/" 
 
@@ -145,8 +147,8 @@ class Analysis():
                     all_c[:,n] = params[0:2]
                 except RuntimeError: 
                     all_c[:,n] = [kernel_size/2, kernel_size/2]
-            self.kernel_centers = np.flip(np.transpose(all_c),1)
-                
+            kernel_centers = np.flip(np.transpose(all_c),1)
+            self.kernel_centers = np.clip(kernel_centers, 0, np.inf)   
         
         def get_params_time(self):
             i = -1; first = True
@@ -610,7 +612,7 @@ class Analysis():
             grid_y = grid_y.flatten().float()
             dx = kernel_x[None, :] - grid_x[:, None]
             dy = kernel_y[None, :] - grid_y[:, None]
-            if norm_size:
+            if norm_size and hasattr(self, 'a'):
                 size_norm = np.mean(self.a*abs(self.d), axis = 0)
             else:
                 size_norm = 1
@@ -655,17 +657,55 @@ class Analysis():
                             RF_pca[comp, x , y, color] = comps[comp, dist, color]
             self.RF_pca = RF_pca
             
+        def fit_DoG(self, device = "cuda:0", LR = 0.1, n_steps = 10000):
+            kernel_centers = nn.Parameter(torch.tensor(self.kernel_centers, device = device))
+            DoG_mod = shapes.get_shape_module("difference-of-gaussian")(torch.tensor(self.kernel_size, device = device), self.n_colors, torch.tensor(self.n_neurons, device = device)).to(device)
+            params = DoG_mod.shape_params
+            RFs = torch.tensor(self.w_flat, device = device)
+            optimizer = torch.optim.SGD([kernel_centers, DoG_mod.shape_params], lr = LR)
+            for i in range(n_steps):
+                optimizer.zero_grad()
+                RFs_DoG = DoG_mod(kernel_centers)
+                loss = torch.sum((RFs - RFs_DoG)**2)
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+                if i%1000 == 0:
+                    print(loss, i)
+            RFs_fit = np.swapaxes(np.reshape(RFs_DoG.detach().cpu().numpy(), [self.n_colors,self.kernel_size,self.kernel_size,self.n_neurons]), 0, 3)
+            self.RFs_fit = RFs_fit
+            self.a, self.b, self.c, self.d = DoG_mod.a.cpu().numpy(), DoG_mod.b.cpu().numpy(), DoG_mod.c.cpu().numpy(), DoG_mod.d.cpu().numpy()
+            self.all_params = params.detach().cpu().numpy()
+            
+            r_coefs = []
+            for i in range(self.n_neurons):
+              fit_flat = RFs_fit[i,:,:,:].flatten()
+              og_flat = self.w[i,:,:,:].flatten()
+              coef = np.corrcoef(og_flat, fit_flat)
+              r_coefs.append(coef[1,0])  
+
+        
+            
         
         def __call__(self):
             plt.close('all')
             #self.get_params_time()
-            self.increase_res(100, norm_size = True)
-            
-            #self.kernels_image = self.make_kernels_image(self.w, n_neurons = 50)
-            self.radial_averages(15)
-            self.pca_radial_average(plot = False)
-            self.make_RF_from_pca()
-            self.get_pathways()
+            if self.parametrized:
+                self.increase_res(100, norm_size = True)
+                
+                #self.kernels_image = self.make_kernels_image(self.w, n_neurons = 50)
+                self.radial_averages(15)
+                self.pca_radial_average(plot = False)
+                self.make_RF_from_pca()
+                self.get_pathways()
+            else:
+                self.fit_DoG()
+                self.increase_res(100, norm_size = True)
+                self.radial_averages(15)
+                self.pca_radial_average(plot = False)
+                self.make_RF_from_pca()
+                self.get_pathways()
+                
             
             #self.neighbors = self.return_neighbors(self.kernel_centers, check_same_pathway = True)
             #self.get_responses()
