@@ -41,8 +41,8 @@ import cv2
 
 #save = '240126-142927'# 100x100 Lagrange
 
-#save = '240125-183448' #DoG parametrization, no patience
-save = '240129-142655' #Patience okat but no DoG parametrization
+save = '240125-183448' #DoG parametrization, no patience
+#save = '240129-142655' #Patience okat but no DoG parametrization
 
 path = "../../saves/" + save + "/" 
 
@@ -284,18 +284,19 @@ class Analysis():
                 add_row = 0
             else:
                 add_row = 1
-            kernels = np.zeros([self.kernel_size*sqrt_n, self.kernel_size*(sqrt_n+add_row), self.n_colors])
+            kernel_size = weights.shape[1]
+            kernels = np.zeros([kernel_size*sqrt_n, kernel_size*(sqrt_n+add_row), self.n_colors])
             for n in range(n_neurons):
                 y_pos = (int(n/sqrt_n))
                 x_pos = (n - y_pos*sqrt_n)
-                x_pos = x_pos*self.kernel_size; y_pos = y_pos*self.kernel_size
+                x_pos = x_pos*kernel_size; y_pos = y_pos*kernel_size
                 kernel_norm = norm(weights[n,:,:,:])
                 for color in range(self.n_colors): 
                     this_kernel = weights[n,:,:,color]
                     if norm_each:
                         #this_kernel = this_kernel/norm(this_kernel)
                         this_kernel = this_kernel/kernel_norm
-                    kernels[x_pos:x_pos+self.kernel_size,y_pos:y_pos+self.kernel_size, color] = this_kernel
+                    kernels[x_pos:x_pos+kernel_size,y_pos:y_pos+kernel_size, color] = this_kernel
             image = scale(kernels)
             plt.imshow(image)
             return image
@@ -550,11 +551,13 @@ class Analysis():
                 x_pos = n - y_pos*size,
                 axis = axes[x_pos, y_pos][0]
                 if n < n_neurons:
+                    
+                    self.plot_rad_avg(axis, rad_avg[n,:,:])
                     #axis = return_subplot(axes, n, n_neurons)
-                    axis.plot(rad_avg[n,:,0], color = 'r')
-                    axis.plot(rad_avg[n,:,1], color = 'g')
-                    axis.plot(rad_avg[n,:,2], color = 'b')
-                    axis.axhline(0, color = 'black')
+                    #axis.plot(rad_avg[n,:,0], color = 'r')
+                    #axis.plot(rad_avg[n,:,1], color = 'g')
+                    #axis.plot(rad_avg[n,:,2], color = 'b')
+                    #axis.axhline(0, color = 'black')
                     axis.set_title("# " + str(n), fontsize = 6)
                     if n != 0:
                         xax, yax = axis.get_xaxis(), axis.get_yaxis()
@@ -565,7 +568,23 @@ class Analysis():
             fig.suptitle(title, y = 0.95, size = 30)
             fig.supxlabel('Radial distance from center (pixels)', y = 0.05, size = 24)
             fig.supylabel('Weight', x = 0.07, size = 24)
+        
+        def plot_rad_avg(self, axis, rad_avg):
+            axis.plot(rad_avg[:,0], color = 'r')
+            axis.plot(rad_avg[:,1], color = 'g')
+            axis.plot(rad_avg[:,2], color = 'b')
+            axis.axhline(0, color = 'black')
+            print(rad_avg.shape)
+        
+        #Plots one RF with its radial average 
+        def plot_RF_rad(self,n):
+            fig, axes = plt.subplots(1,2)
+            axes[0].imshow(scale(self.W[n,:,:,:]))
+            self.plot_rad_avg(axes[1], self.rad_avg[n,:,:])
             
+            
+            
+        
         def pca_radial_average(self, n_comp = 3, plot = True):
             colors = ['black', 'blue', 'orange', 'red', 'yellow']
             if not hasattr(self, 'rad_avg'):
@@ -683,6 +702,7 @@ class Analysis():
               og_flat = self.w[i,:,:,:].flatten()
               coef = np.corrcoef(og_flat, fit_flat)
               r_coefs.append(coef[1,0])  
+        
 
         
             
