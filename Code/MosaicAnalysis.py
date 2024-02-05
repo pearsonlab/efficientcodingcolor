@@ -26,7 +26,7 @@ import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
 from sklearn.mixture import GaussianMixture
 import scipy.optimize as opt
-import cv2
+#import cv2
 
 
 #save = '240107-204731' #SGD, lagrange
@@ -691,28 +691,27 @@ class Analysis_time():
                 print(n, ' center mosaic')
                 
     #eg: "center_mosaic.mp4" or "center_mosaic.avi"
-def make_video(video_name):
-    image_folder = '../Videos/' + save + '/' + video_name + '/'
-    video_name = video_name + '.mp4'
-
-    images = [img for img in os.listdir(image_folder) if img.endswith(".png")]
-    print('hello')
-    frame = cv2.imread(os.path.join(image_folder, images[0]))
-    height, width, layers = frame.shape
-    
-    video = cv2.VideoWriter(video_name, 0, 1, (width,height))
-    print('hello')
-    a = True
-    for image in images:
-        #print(image)
-        hello = cv2.imread(os.path.join(image_folder, image))
-        if a:
-            print('hey')
-            a = False
-        video.write(cv2.imread(os.path.join(image_folder, image)))
-    
-    cv2.destroyAllWindows()
-    video.release()
+#def make_video(video_name):
+#    image_folder = '../Videos/' + save + '/' + video_name + '/'
+#    video_name = video_name + '.mp4'
+#    images = [img for img in os.listdir(image_folder) if img.endswith(".png")]
+#    print('hello')
+#    frame = cv2.imread(os.path.join(image_folder, images[0]))
+#    height, width, layers = frame.shape
+#    
+#    video = cv2.VideoWriter(video_name, 0, 1, (width,height))
+#    print('hello')
+#    a = True
+#    for image in images:
+#        #print(image)
+#        hello = cv2.imread(os.path.join(image_folder, image))
+#        if a:
+#            print('hey')
+#            a = False
+#        video.write(cv2.imread(os.path.join(image_folder, image)))
+#    
+#    cv2.destroyAllWindows()
+#    video.release()
             
         
     

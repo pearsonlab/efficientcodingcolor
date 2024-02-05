@@ -121,7 +121,7 @@ class Encoder(nn.Module):
  
         x = G[:, :, None] * x * G[:, None, :]  # shape = [1 or B, J, J] or [1 or B, TJ, TJ]
         
-        return x  # this is C_rx
+a        return x  # this is C_rx
     
         def make_kernel_centers(self):
             n_neurons = self.J
