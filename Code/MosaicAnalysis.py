@@ -42,7 +42,7 @@ import cv2
 #save = '240126-142927'# 100x100 Lagrange
 
 save = '240125-183448' #DoG parametrization, no patience
-#save = '240129-142655' #Patience okat but no DoG parametrization
+# save = '240129-142655' #Patience okat but no DoG parametrization
 
 path = "../../saves/" + save + "/" 
 
@@ -581,7 +581,7 @@ class Analysis():
             fig, axes = plt.subplots(1,2)
             axes[0].imshow(scale(self.W[n,:,:,:]))
             self.plot_rad_avg(axes[1], self.rad_avg[n,:,:])
-            
+            fig.suptitle(save + " neuron# " + str(n))
             
             
         
@@ -676,7 +676,7 @@ class Analysis():
                             RF_pca[comp, x , y, color] = comps[comp, dist, color]
             self.RF_pca = RF_pca
             
-        def fit_DoG(self, device = "cuda:0", LR = 0.1, n_steps = 10000):
+        def fit_DoG(self, device = "cuda:0", LR = 0.1, n_steps = 20000):
             kernel_centers = nn.Parameter(torch.tensor(self.kernel_centers, device = device))
             DoG_mod = shapes.get_shape_module("difference-of-gaussian")(torch.tensor(self.kernel_size, device = device), self.n_colors, torch.tensor(self.n_neurons, device = device)).to(device)
             params = DoG_mod.shape_params
@@ -693,8 +693,9 @@ class Analysis():
                     print(loss, i)
             RFs_fit = np.swapaxes(np.reshape(RFs_DoG.detach().cpu().numpy(), [self.n_colors,self.kernel_size,self.kernel_size,self.n_neurons]), 0, 3)
             self.RFs_fit = RFs_fit
-            self.a, self.b, self.c, self.d = DoG_mod.a.cpu().numpy(), DoG_mod.b.cpu().numpy(), DoG_mod.c.cpu().numpy(), DoG_mod.d.cpu().numpy()
-            self.all_params = params.detach().cpu().numpy()
+            self.DoG_mod = DoG_mod
+            #self.a, self.b, self.c, self.d = DoG_mod.a.cpu().numpy(), DoG_mod.b.cpu().numpy(), DoG_mod.c.cpu().numpy(), DoG_mod.d.cpu().numpy()
+            #self.all_params = params.detach().cpu().numpy()
             
             r_coefs = []
             for i in range(self.n_neurons):
@@ -702,7 +703,16 @@ class Analysis():
               og_flat = self.w[i,:,:,:].flatten()
               coef = np.corrcoef(og_flat, fit_flat)
               r_coefs.append(coef[1,0])  
-        
+             
+            self.DoG_r = r_coefs
+            
+        def compare_DoG_fits(self, n):
+            fig, axes = plt.subplots(1,2)
+            axes[0].imshow(scale(self.w[n,:,:,:]))
+            axes[0].set_title("Unparametrized RF", size = 30)
+            axes[1].imshow(scale(self.RFs_fit[n,:,:,:]))
+            axes[1].set_title("DoG fit", size = 30)
+            plt.suptitle("cor = " + str(round(self.DoG_r[n],4)) + ", " + save + " #" + str(n), size = 30)
 
         
             
