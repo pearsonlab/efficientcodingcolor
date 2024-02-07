@@ -42,7 +42,7 @@ import scipy.optimize as opt
 #save = '240126-142927'# 100x100 Lagrange
 
 save = '240125-183448' #DoG parametrization, no patience
-# save = '240129-142655' #Patience okat but no DoG parametrization
+#save = '240129-142655' #Patience okat but no DoG parametrization
 
 path = "../../saves/" + save + "/" 
 
@@ -105,6 +105,7 @@ class Analysis():
                 self.b = self.model.encoder.shape_function.b.cpu().detach().numpy()
                 self.c = self.model.encoder.shape_function.c.cpu().detach().numpy()
                 self.d = self.model.encoder.shape_function.d.cpu().detach().numpy()
+                self.max_d = np.argmax(abs(self.d), axis = 0)
                 self.all_params = self.cp['model_state_dict']['encoder.shape_function.shape_params'].cpu().detach().numpy()
                 self.fixed_centers = not 'encoder.kernel_centers' in self.cp['model_state_dict'].keys()
                 
@@ -203,7 +204,7 @@ class Analysis():
             self.type = gauss.predict(X)
             
         
-        def make_mosaic_DoG(self, mosaic_type,  t = 'last', n_plots = 1, plot_size = False, save_fig = False):
+        def make_mosaic_DoG(self, mosaic_type = None,  t = 'last', n_plots = 1, plot_size = False, save_fig = False):
             if save_fig:
                 matplotlib.use('agg')
                 Videos_folder = '../Videos/' + save 
@@ -249,15 +250,15 @@ class Analysis():
                     x = kernel_centers[n, 0]
                     y = kernel_centers[n, 1]
                     #if self.type[n] == 'white' or self.type[n] == 'black':
-                    if self.type[n] == mosaic_type:
+                        
+                    if self.type[n] == mosaic_type or mosaic_type is None:
                         ax.plot(x, y, marker = marker, markersize = 12, color = 'white')
 
-                    if plot_size and self.all_params is not None:
-                        
-                        circle_center = plt.Circle((x,y), radius = self.a, facecolor = 'none', edgecolor = 'r')
-                        circle_surround = plt.Circle((x,y), radius = self.b, facecolor = 'none', edgecolor = 'b')
-                        ax.add_patch(circle_center)
-                        ax.add_patch(circle_surround)
+                        if plot_size and self.all_params is not None:
+                            circle_center = plt.Circle((x,y), radius = np.choose(self.max_d[n], self.a[:,n]), facecolor = 'none', edgecolor = 'r')
+                            #circle_surround = plt.Circle((x,y), radius = self.b, facecolor = 'none', edgecolor = 'b')
+                            ax.add_patch(circle_center)
+                            #ax.add_patch(circle_surround)
                 if save_fig:
                     plt.savefig(mosaic_folder + '/' + 'center_mosaic_' + str(int(self.epoch/self.interval)) + '.png')
                     plt.close('all')
@@ -276,7 +277,7 @@ class Analysis():
                 plt.close('all')
             matplotlib.use('qtagg')
         
-        def make_kernels_image(self, weights, norm_each = True, n_neurons = None):
+        def make_kernels_image(self, weights, n_neurons = None, norm_each = True):
             if n_neurons == None:
                 n_neurons = self.n_neurons
             sqrt_n = int(np.sqrt(n_neurons))
@@ -535,7 +536,10 @@ class Analysis():
                         rad_avg[n,r,:] = 0
             self.rad_avg = rad_avg
             
-        def plot_radial_averages(self, rad_avg, title = "", hspace = 0.5):
+        def plot_radial_averages(self, rad_avg, type_num = None, title = "", hspace = 0.5):
+            if type_num is not None:
+                rad_avg = rad_avg[np.where(self.type == type_num)[0],:]
+            
             n_neurons = rad_avg.shape[0]
             size = round(np.sqrt(n_neurons))
             max_range = np.max(rad_avg)
@@ -569,18 +573,20 @@ class Analysis():
             fig.supxlabel('Radial distance from center (pixels)', y = 0.05, size = 24)
             fig.supylabel('Weight', x = 0.07, size = 24)
         
-        def plot_rad_avg(self, axis, rad_avg):
+        def plot_rad_avg(self, axis, rad_avg, labels = False):
             axis.plot(rad_avg[:,0], color = 'r')
             axis.plot(rad_avg[:,1], color = 'g')
             axis.plot(rad_avg[:,2], color = 'b')
             axis.axhline(0, color = 'black')
-            print(rad_avg.shape)
+            if labels:
+                axis.set_xlabel("Distance from center", size = 50)
+                axis.set_ylabel("Weight", size = 50)
         
         #Plots one RF with its radial average 
         def plot_RF_rad(self,n):
             fig, axes = plt.subplots(1,2)
             axes[0].imshow(scale(self.W[n,:,:,:]))
-            self.plot_rad_avg(axes[1], self.rad_avg[n,:,:])
+            self.plot_rad_avg(axes[1], self.rad_avg[n,:,:], labels = True)
             fig.suptitle(save + " neuron# " + str(n))
             
             
@@ -694,8 +700,9 @@ class Analysis():
             RFs_fit = np.swapaxes(np.reshape(RFs_DoG.detach().cpu().numpy(), [self.n_colors,self.kernel_size,self.kernel_size,self.n_neurons]), 0, 3)
             self.RFs_fit = RFs_fit
             self.DoG_mod = DoG_mod
-            #self.a, self.b, self.c, self.d = DoG_mod.a.cpu().numpy(), DoG_mod.b.cpu().numpy(), DoG_mod.c.cpu().numpy(), DoG_mod.d.cpu().numpy()
-            #self.all_params = params.detach().cpu().numpy()
+            self.a, self.b, self.c, self.d = DoG_mod.a.cpu().numpy(), DoG_mod.b.cpu().numpy(), DoG_mod.c.cpu().numpy(), DoG_mod.d.cpu().numpy()
+            self.max_d = np.argmax(abs(self.d), axis = 0)
+            self.all_params = params.detach().cpu().numpy()
             
             r_coefs = []
             for i in range(self.n_neurons):
@@ -713,6 +720,7 @@ class Analysis():
             axes[1].imshow(scale(self.RFs_fit[n,:,:,:]))
             axes[1].set_title("DoG fit", size = 30)
             plt.suptitle("cor = " + str(round(self.DoG_r[n],4)) + ", " + save + " #" + str(n), size = 30)
+            
 
         
             
