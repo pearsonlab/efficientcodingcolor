@@ -185,15 +185,14 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
             if loss_smooth > best_loss_smooth:
                 best_loss_smooth = loss_smooth.clone()
                 patience = 0
-                print('You just beat me!')
             
-            if patience > LR_patience:
-                for g in optimizer_MI.param_groups:
-                    g['lr'] = g['lr']/2
-                    print("Reduced LR to:", g['lr']/2)
-                    print(loss_smooth, best_loss_smooth)
-                    patience = 0
-                    cooldown_timer = 0
+            #if patience > LR_patience:
+            #    for g in optimizer_MI.param_groups:
+            #        g['lr'] = g['lr']*LR_ratio
+            #        print("Reduced LR to:", g['lr'])
+            #        print(loss_smooth, best_loss_smooth)
+            #        patience = 0
+            #        cooldown_timer = 0
                 
                 
             loss_FR = torch.sum(metrics.return_h()**2)
