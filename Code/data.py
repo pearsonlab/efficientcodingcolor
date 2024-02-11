@@ -69,6 +69,8 @@ class KyotoNaturalImages(Dataset):
                 
                 if n_colors == 1:
                     image = imageOM
+                if n_colors == 2:
+                    image = np.array([imageOL, imageOS])
                 elif n_colors == 3:
                     image = np.array([imageOL, imageOM, imageOS])
                 else:

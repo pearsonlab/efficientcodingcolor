@@ -20,10 +20,12 @@ class Shape(nn.Module):
         if n_colors > 1 and not read:
             params_pre = np.tile(initial_parameters, n_colors)
             params = torch.tensor(params_pre).unsqueeze(-1).repeat(1, num_shapes)
-            for color in range(n_colors):
-                params[self.n_colors + color*4, :] = torch.normal(mean=params[self.n_colors + color*4,:], std = torch.tensor(1.0).repeat(num_shapes))
+            for p in range(params.shape[0]):
+                print(params.shape, "params.shape")
+                params[p, :] = torch.normal(mean=params[p,:], std = torch.tensor(1.0).repeat(num_shapes))      
         else:
             params = torch.tensor(initial_parameters)
+        print(torch.var(params, dim = 1))
         #params = torch.tensor(params_pre).unsqueeze(-1).repeat(1, num_shapes)
 
         self.shape_params = nn.Parameter(params, requires_grad=True)
@@ -46,7 +48,7 @@ class Shape(nn.Module):
 
 
 class DifferenceOfGaussianShape(Shape):
-    def __init__(self, kernel_size, n_colors, num_shapes=1, init_params = [-3.0, -3.0, 0.0, 0.0], read = False):
+    def __init__(self, kernel_size, n_colors, num_shapes=1, init_params = [-0.5, -1, -0.5, 0.0], read = False):
         super().__init__(kernel_size, init_params, num_shapes, n_colors, read)
     
 
