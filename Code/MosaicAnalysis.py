@@ -43,6 +43,7 @@ import scipy.optimize as opt
 
 save = '240125-183448' #DoG parametrization, no patience
 #save = '240129-142655' #Patience okat but no DoG parametrization
+save = '240203-214427'
 
 path = "../../saves/" + save + "/" 
 
