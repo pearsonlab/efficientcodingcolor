@@ -48,7 +48,7 @@ class Shape(nn.Module):
 
 
 class DifferenceOfGaussianShape(Shape):
-    def __init__(self, kernel_size, n_colors, num_shapes=1, init_params = [-3.0, -3.0, 0.0, 0.0], read = False):
+    def __init__(self, kernel_size, n_colors, num_shapes=1, init_params = [-0.5, -1, -0.5, 0.0], read = False):
         super().__init__(kernel_size, init_params, num_shapes, n_colors, read)
     
 

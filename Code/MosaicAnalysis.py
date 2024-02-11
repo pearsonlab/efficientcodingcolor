@@ -44,6 +44,8 @@ import scipy.optimize as opt
 save = '240125-183448' #DoG parametrization, no patience
 #save = '240129-142655' #Patience okat but no DoG parametrization
 
+#save = '240208-221121'
+
 path = "../../saves/" + save + "/" 
 
 class Analysis():
@@ -191,20 +193,27 @@ class Analysis():
             self.all_params_time = all_params_time; self.kernel_centers_time = kernel_centers_time; self.W_time = weights_time
             self.a_time = a_time; self.b_time = b_time; self.c_time = c_time; self.d_time = d_time
         
-        def get_pathways(self): #Possible bug here please confirm it works
+        def get_pathways(self, n_comps = 7): #Possible bug here please confirm it works
             best_bic = np.inf
             X = np.swapaxes(self.pca_transform,0,1)
             
-            gauss = GaussianMixture(n_components = 7, n_init = 50).fit(X)
+            gauss = GaussianMixture(n_components = n_comps, n_init = 50).fit(X)
             bic = gauss.bic(X)
                 #if bic < best_bic:
                 #    best_bic = bic
                 #    best_gauss = gauss
             self.gauss = gauss
-            self.type = gauss.predict(X)
+            type1 = gauss.predict(X)
+            
+            type_order = np.flip(np.argsort(np.bincount(type1)))
+            type2 = []
+            for i in range(type1.shape[0]):
+                type2.append(list(type_order).index(type1[i]))
+            
+            self.type = type2
             
         
-        def make_mosaic_DoG(self, mosaic_type = None,  t = 'last', n_plots = 1, plot_size = False, save_fig = False):
+        def make_mosaic(self, mosaic_type = None, ax = None, plot_size = False, save_fig = False):
             if save_fig:
                 matplotlib.use('agg')
                 Videos_folder = '../Videos/' + save 
@@ -214,68 +223,61 @@ class Analysis():
                     os.mkdir(Videos_folder)
                 if not os.path.exists(mosaic_folder):
                     os.mkdir(mosaic_folder)
-                
-            if t == 'last':
-                t = self.iterations.shape[0] - 1
-            if n_plots > self.n_colors:
-                Exception("You can't have more plots than color channels!")
+            
                 
             kernel_centers = self.kernel_centers
-            fig, axes = plt.subplots(1,n_plots)
-            if n_plots == 1:
-                axes = [axes]
-            color = -1
-            if n_plots == 3:
-                lms_str = ['L cones', 'M cones', 'S cones']
-            else:
-                lms_str = ['RF centers']
-            
-            for ax in axes:
-                ax.set_aspect('equal')
-                ax.set_facecolor('tab:gray')
-                color = color + 1
-                ax.set_xlim([0,self.kernel_size])
-                ax.set_ylim([0,self.kernel_size])
-                ax.set_title('Mosaic of ' + lms_str[color], size = 12)
-                ax.set_yticklabels([])
-                ax.set_xticklabels([])
-                for n in range(kernel_centers.shape[0]):
-                    #if self.pathway[n] == 'ON':
-                    #    marker = 'x'
-                    #elif self.pathway[n] == 'OFF':
-                    #    marker = 'o'
-                    #else:
-                    #    marker = '.'
-                    marker = 'o'
-                    x = kernel_centers[n, 0]
-                    y = kernel_centers[n, 1]
-                    #if self.type[n] == 'white' or self.type[n] == 'black':
-                        
-                    if self.type[n] == mosaic_type or mosaic_type is None:
-                        ax.plot(x, y, marker = marker, markersize = 12, color = 'white')
-
-                        if plot_size and self.all_params is not None:
-                            circle_center = plt.Circle((x,y), radius = np.choose(self.max_d[n], self.a[:,n]), facecolor = 'none', edgecolor = 'r')
-                            #circle_surround = plt.Circle((x,y), radius = self.b, facecolor = 'none', edgecolor = 'b')
-                            ax.add_patch(circle_center)
-                            #ax.add_patch(circle_surround)
-                if save_fig:
-                    plt.savefig(mosaic_folder + '/' + 'center_mosaic_' + str(int(self.epoch/self.interval)) + '.png')
-                    plt.close('all')
+            if ax is None:
+                fig, ax = plt.subplots(1,1)
         
-        def make_mosaic_DoG_time(self, filename = 'mosaic_color', plot_size = False):
-            matplotlib.use('agg')
-            Videos_folder = '../Videos/' + save
-            
-            if not os.path.exists(Videos_folder):
-                os.mkdir(Videos_folder)
-            for i in range(self.iterations.shape[0]):
-                if i%100 == 0:
-                    print(i)
-                self.make_mosaic_DoG(i, 1, plot_size = plot_size)
-                plt.savefig(Videos_folder + '/' + filename + '_' + str(i) + '.png')
+        
+            ax.set_aspect('equal')
+            ax.set_facecolor('tab:gray')
+            ax.set_xlim([0,self.kernel_size])
+            ax.set_ylim([0,self.kernel_size])
+            ax.set_yticklabels([])
+            ax.set_xticklabels([])
+            ax.set_title("Mosaic type: " + str(mosaic_type), size = 20)
+            for n in range(kernel_centers.shape[0]):
+                marker = 'o'
+                x = kernel_centers[n, 0]
+                y = kernel_centers[n, 1]
+                    
+                if self.type[n] == mosaic_type or mosaic_type is None:
+                    ax.plot(x, y, marker = marker, markersize = 12, color = 'white')
+
+                    if plot_size and self.all_params is not None:
+                        res_ratio = self.kernel_size/self.W.shape[1]
+                        circle_center = plt.Circle((x,y), radius = self.zero_cross[n]*res_ratio, facecolor = 'none', edgecolor = 'r')
+                        ax.add_patch(circle_center)
+            if save_fig:
+                plt.savefig(mosaic_folder + '/' + 'center_mosaic_' + str(int(self.epoch/self.interval)) + '.png')
                 plt.close('all')
-            matplotlib.use('qtagg')
+                    
+        def make_mosaic_type(self, plot_size = False):
+            n_types = max(self.type) + 1
+            fig_len = math.ceil(np.sqrt(n_types))
+            fig, axes = plt.subplots(fig_len, fig_len)
+            axes = axes.flatten()
+            for t in range(n_types):
+                self.make_mosaic(mosaic_type = t, ax = axes[t], plot_size = plot_size)
+            axes_remove = axes.shape[0] - n_types
+            for i in range(axes_remove):
+                axes[-(i+1)].set_axis_off()
+                
+        
+        #def make_mosaic_DoG_time(self, filename = 'mosaic_color', plot_size = False):
+        #    matplotlib.use('agg')
+        #    Videos_folder = '../Videos/' + save
+        #    
+        #    if not os.path.exists(Videos_folder):
+        #        os.mkdir(Videos_folder)
+        #    for i in range(self.iterations.shape[0]):
+        #        if i%100 == 0:
+        #            print(i)
+        #        self.make_mosaic_DoG(i, 1, plot_size = plot_size)
+        #        plt.savefig(Videos_folder + '/' + filename + '_' + str(i) + '.png')
+        #        plt.close('all')
+        #    matplotlib.use('qtagg')
         
         def make_kernels_image(self, weights, n_neurons = None, norm_each = True):
             if n_neurons == None:
@@ -536,6 +538,33 @@ class Analysis():
                         rad_avg[n,r,:] = 0
             self.rad_avg = rad_avg
             
+        def zero_crossings_obs(self):
+            zero_cross = np.zeros(self.n_neurons)
+            for n in range(self.n_neurons):
+                maxes = np.max(test.rad_avg[n,:,:], axis = 1)
+                mins = np.min(test.rad_avg[n,:,:], axis = 1)
+                signs = (maxes > abs(mins)).astype(int)
+                crosses = np.roll(signs, -1) - signs != 0
+                first_cross = np.where(crosses)[0]
+                zero_cross[n] = first_cross
+        
+        def zero_crossings(self):
+            zero_cross = np.zeros(self.n_neurons)
+            maxes = np.max(self.rad_avg, axis = 2)
+            mins = np.min(self.rad_avg, axis = 2)
+            signs = (maxes > abs(mins)).astype(int)
+            crosses = np.roll(signs, -1, axis = 1) - signs != 0
+            for n in range(self.n_neurons):
+                if crosses[n,:].any():
+                    zero_cross[n] = np.where(crosses[n,:])[0][0] + 1
+                else:
+                    zero_cross[n] = self.rad_avg.shape[1] + 2
+            self.zero_cross = zero_cross
+                
+                
+                    
+                    
+                
         def plot_radial_averages(self, rad_avg, type_num = None, title = "", hspace = 0.5):
             if type_num is not None:
                 rad_avg = rad_avg[np.where(self.type == type_num)[0],:]
@@ -556,7 +585,7 @@ class Analysis():
                 axis = axes[x_pos, y_pos][0]
                 if n < n_neurons:
                     
-                    self.plot_rad_avg(axis, rad_avg[n,:,:])
+                    self.plot_rad_avg(rad_avg[n,:,:], axis)
                     #axis = return_subplot(axes, n, n_neurons)
                     #axis.plot(rad_avg[n,:,0], color = 'r')
                     #axis.plot(rad_avg[n,:,1], color = 'g')
@@ -573,7 +602,9 @@ class Analysis():
             fig.supxlabel('Radial distance from center (pixels)', y = 0.05, size = 24)
             fig.supylabel('Weight', x = 0.07, size = 24)
         
-        def plot_rad_avg(self, axis, rad_avg, labels = False):
+        def plot_rad_avg(self, rad_avg, axis = None, labels = False):
+            if axis is None:
+                fig, axis = plt.subplots(1,1)
             axis.plot(rad_avg[:,0], color = 'r')
             axis.plot(rad_avg[:,1], color = 'g')
             axis.plot(rad_avg[:,2], color = 'b')
@@ -586,7 +617,7 @@ class Analysis():
         def plot_RF_rad(self,n):
             fig, axes = plt.subplots(1,2)
             axes[0].imshow(scale(self.W[n,:,:,:]))
-            self.plot_rad_avg(axes[1], self.rad_avg[n,:,:], labels = True)
+            self.plot_rad_avg(self.rad_avg[n,:,:], axes[1], labels = True)
             fig.suptitle(save + " neuron# " + str(n))
             
             
@@ -736,6 +767,7 @@ class Analysis():
                 self.pca_radial_average(plot = False)
                 self.make_RF_from_pca()
                 self.get_pathways()
+                self.zero_crossings()
             else:
                 self.fit_DoG()
                 self.increase_res(100, norm_size = True)
@@ -743,6 +775,8 @@ class Analysis():
                 self.pca_radial_average(plot = False)
                 self.make_RF_from_pca()
                 self.get_pathways()
+                self.zero_crossings()
+            matplotlib.use("QtAgg")
                 
             
             #self.neighbors = self.return_neighbors(self.kernel_centers, check_same_pathway = True)
@@ -751,7 +785,7 @@ class Analysis():
             #self.make_df_pairs()
             #self.get_cov_colors()
             #self.images.pca_color()
-            matplotlib.use("Qtagg")
+            #matplotlib.use("Qtagg")
 
 class Analysis_time():
     def __init__(self, path, interval = 1000):
@@ -769,12 +803,22 @@ class Analysis_time():
                 print(iteration)
         self.analyses = all_analyses
         
-    def make_mosaic_images(self):
+    def make_mosaic_type_video(self, filename):
+        matplotlib.use('Qtagg')
+        Videos_folder = '../Videos/' + save
+        self.analyses[-1]()
+        n_type = self.analyses[-1].type
         for n in range(self.n_analyses):
-            self.analyses[n].make_mosaic_DoG(save_fig = True)
-            if n%100 == 0:
+            self.analyses[n].type = n_type
+            self.analyses[n].make_mosaic_type()
+            manager = plt.get_current_fig_manager()
+            manager.full_screen_toggle()
+            plt.savefig(Videos_folder + '/' + filename + '_' + str(n) + '.png')
+            plt.close('all')
+            if n%10 == 0:
                 print(n, ' center mosaic')
-                
+            
+        matplotlib.use('Qtagg')
     def epoch_metrics(self):
         det_nums = []
         det_denums = []
@@ -818,6 +862,5 @@ class Analysis_time():
 
 test = Analysis(path)
 test()
-#test_all = Analysis_time(path, interval = 50000)
+#test_all = Analysis_time(path, interval = 10000)
 #test_all.epoch_metrics()
-#test2.make_mosaic_images()

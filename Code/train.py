@@ -59,7 +59,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           shape: Optional[str] = "difference-of-gaussian", # "difference-of-gaussian" for Oneshape case #BUG: Can't use color 1 with "difference-of-gaussian"
           individual_shapes: bool = True,  # individual size of the RFs can be different for the Oneshape case
           optimizer: str = "sgd",  # can be "adam"
-          learning_rate: float = 0.01, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
+          learning_rate: float = 0.05, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
           rho: float = 1,
           maxgradnorm: float = 20.0,
           load_checkpoint: str = None, #"230705-141246",  # checkpoint file to resume training from
@@ -69,8 +69,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
           firing_restriction = "Lagrange",
           FR_learning_rate = 0.01,
-          LR_patience = 100000,
-          LR_cooldown = 500000,
+          LR_reduce_epochs = [1_000_000, 2_000_000],
           LR_ratio = 0.5): #"Lagrange" or "Gamma" or "None" or "Two_losses"
 
     train_args = deepcopy(locals())  # keep all arguments as a dictionary
@@ -123,8 +122,6 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
     else:
         optimizer_MI = optimizer_class([model.encoder.W], **optimizer_kwargs_MI)
         optimizer_FR = optimizer_class([model.encoder.logA, model.encoder.logB], **optimizer_kwargs_FR)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_MI, mode='min', 
-                factor=LR_ratio, patience=LR_patience, threshold=0.0001, threshold_mode='rel', cooldown=LR_cooldown, min_lr=0, eps=1e-08, verbose=True)
     
     
     
@@ -219,9 +216,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
                 torch.nn.utils.clip_grad_norm_(all_params, maxgradnorm)
             
             optimizer_MI.step()
-            if iteration > 100000:
-                scheduler.step(loss_MI)
-            #optimizer_MI.zero_grad()
+            
             
             model.encoder.normalize()
             
