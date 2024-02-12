@@ -40,10 +40,10 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           #iterations: int = 3,
           batch_size: int = 128,
           data: str = "imagenet",
-          kernel_size: int = 18,
+          kernel_size: int = 12,
           circle_masking: bool = True,
           dog_prior: bool = False,
-          neurons: int = 300,  # number of neurons, J
+          neurons: int = 500,  # number of neurons, J
           jittering_start: Optional[int] = 500000, #originally 200000
           jittering_stop: Optional[int] = 800000, #originally 500000
           jittering_interval: int = 5000,
@@ -59,7 +59,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           shape: Optional[str] = "difference-of-gaussian", # "difference-of-gaussian" for Oneshape case #BUG: Can't use color 1 with "difference-of-gaussian"
           individual_shapes: bool = True,  # individual size of the RFs can be different for the Oneshape case
           optimizer: str = "sgd",  # can be "adam"
-          learning_rate: float = 0.05, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
+          learning_rate: float = 0.01, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
           rho: float = 1,
           maxgradnorm: float = 20.0,
           load_checkpoint: str = None, #"230705-141246",  # checkpoint file to resume training from
@@ -128,7 +128,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
     all_params = [p for n, p in model.named_parameters() if p.requires_grad]
     last_iteration = 0
     if load_checkpoint is not None:
-        path = "saves/" + load_checkpoint + "/"
+        path = "../saves/" + load_checkpoint + "/"
         last_cp = find_last_cp(path)
         checkpoint = torch.load(path + last_cp)
         if not isinstance(checkpoint, dict):
@@ -160,9 +160,6 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
             if iteration in jittering_iterations:
                 model.encoder.jitter_kernels(jittering_power)
             
-            cooldown_timer += 1
-            if cooldown_timer > LR_cooldown:
-                patience += 1
             batch = next(data_iterator).to(device)
             
             torch.manual_seed(iteration)
@@ -173,15 +170,15 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
             effective_count = neurons
             
             loss_MI = metrics.final_loss(firing_restriction) + kernel_norm_penalty
-            if iteration == 1:
-                loss_smooth = loss_MI.detach().cpu()
-                best_loss_smooth = loss_smooth
+            #if iteration == 1:
+            #    loss_smooth = loss_MI.detach().cpu()
+            #    best_loss_smooth = loss_smooth
                 
-            else:
-                loss_smooth = 0.999*loss_smooth + 0.001*loss_MI.detach().cpu()
-            if loss_smooth > best_loss_smooth:
-                best_loss_smooth = loss_smooth.clone()
-                patience = 0
+            #else:
+            #    loss_smooth = 0.999*loss_smooth + 0.001*loss_MI.detach().cpu()
+            #if loss_smooth > best_loss_smooth:
+            #    best_loss_smooth = loss_smooth.clone()
+            #    patience = 0
             
             #if patience > LR_patience:
             #    for g in optimizer_MI.param_groups:

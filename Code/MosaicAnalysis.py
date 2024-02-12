@@ -41,10 +41,11 @@ import scipy.optimize as opt
 
 #save = '240126-142927'# 100x100 Lagrange
 
-save = '240125-183448' #DoG parametrization, no patience
+#save = '240125-183448' #DoG parametrization, no patience
 #save = '240129-142655' #Patience okat but no DoG parametrization
 
-#save = '240208-221121'
+#save = '230705-141246'
+save = '230821-024538'
 
 path = "../../saves/" + save + "/" 
 
@@ -210,7 +211,7 @@ class Analysis():
             for i in range(type1.shape[0]):
                 type2.append(list(type_order).index(type1[i]))
             
-            self.type = type2
+            self.type = np.transpose(type2)
             
         
         def make_mosaic(self, mosaic_type = None, ax = None, plot_size = False, save_fig = False):
@@ -829,6 +830,8 @@ class Analysis_time():
             det_nums.append(np.linalg.det(num))
             det_denums.append(np.linalg.det(denum))
             i += 1
+            if iteration > 1650000:
+                break
         
         self.det_nums = det_nums
         self.det_denums = det_denums
@@ -862,5 +865,5 @@ class Analysis_time():
 
 test = Analysis(path)
 test()
-#test_all = Analysis_time(path, interval = 10000)
+test_all = Analysis_time(path, interval = 10000)
 #test_all.epoch_metrics()
