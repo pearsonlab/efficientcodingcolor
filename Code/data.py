@@ -72,7 +72,7 @@ class KyotoNaturalImages(Dataset):
                 if n_colors == 2:
                     image = np.array([imageOL, imageOS])
                 elif n_colors == 3:
-                    image = np.array([imageOL, imageOM, imageOS])
+                    image = np.array([imageOM, imageOM, imageOM])
                 else:
                     Exception("You can only have 1 or 3 colors")
                 #image = np.tensordot(pca_comps, image, axes = 1)

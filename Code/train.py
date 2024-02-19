@@ -36,14 +36,14 @@ def set_seed(seed=None, seed_torch=True):
 
 
 def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S"),
-          iterations: int = 3_000_000,
+          iterations: int = 1_500_000,
           #iterations: int = 3,
           batch_size: int = 128,
           data: str = "imagenet",
-          kernel_size: int = 12,
+          kernel_size: int = 18,
           circle_masking: bool = True,
           dog_prior: bool = False,
-          neurons: int = 500,  # number of neurons, J
+          neurons: int = 100,  # number of neurons, J
           jittering_start: Optional[int] = 500000, #originally 200000
           jittering_stop: Optional[int] = 800000, #originally 500000
           jittering_interval: int = 5000,
@@ -55,7 +55,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           output_noise: float = 3.0,
           nonlinearity: str = "softplus",
           beta: float = -0.5,
-          n_colors = 3,
+          n_colors = 1,
           shape: Optional[str] = "difference-of-gaussian", # "difference-of-gaussian" for Oneshape case #BUG: Can't use color 1 with "difference-of-gaussian"
           individual_shapes: bool = True,  # individual size of the RFs can be different for the Oneshape case
           optimizer: str = "sgd",  # can be "adam"
@@ -111,8 +111,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
     model_args["data_covariance"] = None
     model_args["sigma_prime"] = None
 
-    H_X = data_covariance.cholesky().diag().log2().sum().item() + model.D / 2.0 * np.log2(2 * np.pi * np.e)
-    print(f"H(X) = {H_X:.3f}")
+    #H_X = data_covariance.cholesky().diag().log2().sum().item() + model.D / 2.0 * np.log2(2 * np.pi * np.e)
+    #print(f"H(X) = {H_X:.3f}")
 
     optimizer_class = {"adam": torch.optim.Adam, "sgd": torch.optim.SGD}[optimizer]
     optimizer_kwargs_MI = dict(lr=learning_rate)
@@ -232,7 +232,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
                 for key, value in metrics.__dict__.items():
                     if torch.is_tensor(value):
                         writer.add_scalar(f"terms/{key}", value.mean().item(), iteration)
-                writer.add_scalar(f"terms/MI", H_X - metrics.loss.mean().item(), iteration)
+                #writer.add_scalar(f"terms/MI", H_X - metrics.loss.mean().item(), iteration)
                 writer.add_scalar(f"train/grad_norm", grad_norm.item(), iteration)
                 writer.add_scalar(f"train/param_norm", param_norm.item(), iteration)
                 writer.add_scalar(f"train/kernel_variance", kernel_variance.item(), iteration)
