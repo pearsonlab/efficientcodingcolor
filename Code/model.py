@@ -10,6 +10,7 @@ from shapes import get_shape_module, Shape
 import matplotlib.pyplot as plt
 from analysis_utils import closest_divisor
 from util import hexagonal_grid
+import math
 
 class Encoder(nn.Module):
     def __init__(self,
@@ -149,8 +150,20 @@ class Encoder(nn.Module):
     def normalize(self):
         with torch.no_grad():
             self.W /= self.W.norm(dim=0, keepdim=True)
+    
+    def correlated_input_noise(self, B):
+        x, y = np.meshgrid(np.array(range(self.kernel_size)), np.array(range(self.kernel_size)))
 
-    def forward(self, image: torch.Tensor, h_exp: torch.Tensor, firing_restriction, record_C = False):
+        x1, y1 = x.flatten(), y.flatten()
+        x2, y2 = np.copy(x1), np.copy(y1)
+        cov = np.zeros([self.kernel_size**2, self.kernel_size**2])
+        for pos1 in range(x1.shape[0]):
+            for pos2 in range(x2.shape[0]):
+                distance = np.sqrt((x1[pos1]-x2[pos2])**2 + (y1[pos1]-y2[pos2])**2)
+                cov[pos1, pos2] = math.exp(-distance/B)
+        return cov
+
+    def forward(self, image: torch.Tensor, h_exp: torch.Tensor, firing_restriction, corr_noise_sd, record_C = False):
         D = self.D
         L = image.shape[1]
         
@@ -281,12 +294,12 @@ class RetinaVAE(nn.Module):
 
         self.Lambda = nn.Parameter(torch.rand(neurons))
 
-    def forward(self, x, h_exp, firing_restriction, record_C = False) -> OutputTerms:
+    def forward(self, x, h_exp, firing_restriction, corr_noise_sd = np.inf, record_C = False) -> OutputTerms:
         batch_size = x.shape[0]
         x = x.view(batch_size, -1, self.D)  # x.shape = [B, L, D] (L: input time points)
         
         o = OutputTerms(self)
-        o.z, o.r, numerator, denominator = self.encoder(x, h_exp, firing_restriction, record_C = record_C)
+        o.z, o.r, numerator, denominator = self.encoder(x, h_exp, firing_restriction, corr_noise_sd, record_C = record_C)
 
         if numerator is not None:
             L_numerator = numerator.cholesky()
