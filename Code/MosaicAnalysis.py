@@ -48,6 +48,10 @@ save = '240203-214427'
 #save = '230705-141246'
 save = '230821-024538'
 
+save ='240210-215844'
+
+#save = '240212-143644' #Experiment with [M,M,M] channels 
+
 path = "../../saves/" + save + "/" 
 
 class Analysis():
@@ -327,8 +331,8 @@ class Analysis():
                 nearest_pairs.append(pair)
             return nearest_pairs
         
-        def plot3D(self, params, angles = None, size = 22, title = None, color_type = False, labels = 'LMS', ellipse = False):
-            colors = ['black', 'blue', 'red', 'yellow', 'green', 'orange', 'grey']
+        def plot3D(self, params, angles = None, size = 22, title = None, color_type = False, labels = 'PCA', ellipse = False):
+            colors = ['black', 'blue', 'red', 'orange', 'green', 'purple', 'grey']
             if angles is not None:
                 elev, azim = angles
             else:
@@ -355,7 +359,7 @@ class Analysis():
             
             return ax
             
-        def plot3D_video(self, params, filename, title = None, size = 22, ellipse = False, special_command = None, color_type = True, labels = 'LMS'):
+        def plot3D_video(self, params, filename, title = None, size = 22, ellipse = False, special_command = None, color_type = True, labels = 'PCA'):
             azims = np.array(range(0,180,1))
             alts = np.array(range(30,90,1))
             alt = 30
@@ -607,9 +611,12 @@ class Analysis():
         def plot_rad_avg(self, rad_avg, axis = None, labels = False):
             if axis is None:
                 fig, axis = plt.subplots(1,1)
-            axis.plot(rad_avg[:,0], color = 'r')
-            axis.plot(rad_avg[:,1], color = 'g')
-            axis.plot(rad_avg[:,2], color = 'b')
+            if self.n_colors == 3:
+                colors = ['r','g','b']
+            else:
+                colors = ['r', 'b']
+            for c in range(self.n_colors):
+                axis.plot(rad_avg[:,c], color = colors[c])
             axis.axhline(0, color = 'black')
             if labels:
                 axis.set_xlabel("Distance from center", size = 50)
@@ -628,7 +635,9 @@ class Analysis():
             colors = ['black', 'blue', 'orange', 'red', 'yellow']
             if not hasattr(self, 'rad_avg'):
                 self.radial_averages()
-            rad_avg_con = np.concatenate(([self.rad_avg[:,:,0], self.rad_avg[:,:,1], self.rad_avg[:,:,2]]), axis = 1)
+            rad_avg_con = np.empty([self.n_neurons, 0])
+            for c in range(self.n_colors):
+                rad_avg_con = np.concatenate([rad_avg_con, self.rad_avg[:,:,c]], axis = 1)
             pca = PCA(n_components=n_comp)
             pca.fit(rad_avg_con)
             self.pca = pca
@@ -768,7 +777,7 @@ class Analysis():
                 self.radial_averages(15)
                 self.pca_radial_average(plot = False)
                 self.make_RF_from_pca()
-                self.get_pathways()
+                self.get_pathways(n_comps = 5)
                 self.zero_crossings()
             else:
                 self.fit_DoG()
@@ -804,6 +813,8 @@ class Analysis_time():
             if iteration%100000 == 0:
                 print(iteration)
         self.analyses = all_analyses
+        self.last = self.analyses[-1]
+        self.last()
         
     def make_mosaic_type_video(self, filename):
         matplotlib.use('Qtagg')
@@ -825,17 +836,43 @@ class Analysis_time():
         det_nums = []
         det_denums = []
         i = 0
+        a = np.empty([self.last.n_colors, self.last.n_neurons, 0])
+        b = np.empty([self.last.n_colors, self.last.n_neurons, 0])
+        c = np.empty([self.last.n_colors, self.last.n_neurons, 0])
+        d = np.empty([self.last.n_colors, self.last.n_neurons, 0])
         for iteration in self.iterations:
             num = self.analyses[i].model.encoder.C_z.detach().cpu().numpy()
             denum = self.analyses[i].model.encoder.C_zx.detach().cpu().numpy()
             det_nums.append(np.linalg.det(num))
             det_denums.append(np.linalg.det(denum))
+            #all_a = self.analyses[i].model.encoder.shape_function.a.cpu().detach().numpy()
+            
+            a = np.append(a, np.expand_dims(self.analyses[i].model.encoder.shape_function.a.cpu().detach().numpy(), 2), axis = 2)
+            b = np.append(b, np.expand_dims(self.analyses[i].model.encoder.shape_function.b.cpu().detach().numpy(), 2), axis = 2)
+            c = np.append(c, np.expand_dims(self.analyses[i].model.encoder.shape_function.c.cpu().detach().numpy(), 2), axis = 2)
+            d = np.append(d, np.expand_dims(self.analyses[i].model.encoder.shape_function.d.cpu().detach().numpy(), 2), axis = 2)
+            
             i += 1
-            if iteration > 1650000:
-                break
         
         self.det_nums = det_nums
         self.det_denums = det_denums
+        
+        self.a, self.b, self.c, self.d = a,b,c,d
+    
+    def plot_params_time(self, n):
+        n_colors = self.last.n_colors
+        n_params = 4
+        params_time = [self.a, self.b, self.c, self.d]
+        params_time_str = ['Center precision','Surround precision','Surround strength','Color strength']
+        colors_str = ['r', 'g', 'b']
+        fig, axes = plt.subplots(1,n_params)
+        for param in range(n_params):
+            param_time = params_time[param]
+            for color in range(n_colors):
+                axes[param].plot(param_time[color,n,:], color = colors_str[color])
+            axes[param].set_title(params_time_str[param], size = 20)
+        fig.suptitle("Neuron # " + str(n) + ', type: ' + str(self.last.type[n]), size = 30)
+        fig.supxlabel("Epoch", size = 30)
             
                 
     #eg: "center_mosaic.mp4" or "center_mosaic.avi"
@@ -867,4 +904,4 @@ class Analysis_time():
 test = Analysis(path)
 test()
 test_all = Analysis_time(path, interval = 10000)
-#test_all.epoch_metrics()
+test_all.epoch_metrics()

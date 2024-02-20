@@ -17,7 +17,7 @@ class Shape(nn.Module):
         self.register_buffer("grid_x", grid_x.flatten().float())
         self.register_buffer("grid_y", grid_y.flatten().float())
         self.n_colors = n_colors
-        if n_colors > 1 and not read:
+        if n_colors >= 1 and not read:
             params_pre = np.tile(initial_parameters, n_colors)
             params = torch.tensor(params_pre).unsqueeze(-1).repeat(1, num_shapes)
             for p in range(params.shape[0]):
@@ -25,7 +25,7 @@ class Shape(nn.Module):
                 params[p, :] = torch.normal(mean=params[p,:], std = torch.tensor(1.0).repeat(num_shapes))      
         else:
             params = torch.tensor(initial_parameters)
-        print(torch.var(params, dim = 1))
+        #print(torch.var(params, dim = 1))
         #params = torch.tensor(params_pre).unsqueeze(-1).repeat(1, num_shapes)
 
         self.shape_params = nn.Parameter(params, requires_grad=True)

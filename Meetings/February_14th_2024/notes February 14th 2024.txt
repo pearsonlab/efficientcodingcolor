@@ -1,0 +1,30 @@
+Meeting in person with Greg and John on Tuesday at noon.
+
+Look at more example of zero-crossings and see if I agree with them visually
+Consider doing 1 per channel and aggregating 
+
+
+#################
+If we look at coactivation properties of mosaics, we might understand why they
+stop moving when not forming a perfect mosaic. 
+
+1. How correlated all RFs are. Correlation matrix
+2. Binarize activity. Correlation matrix (how often they are active). 
+3. How strongly do they correlate when they are active. 
+###########################
+
+Can consider re-computing MI after changing on parameter. 
+Try to understand single scenarios why kernel centers (or color weights) do not move
+Why has it converged? If we move it, what does it conflict with? 
+
+
+You're allowed to take different inputs from each channel to average out noise. 
+Thats why we get 4 mosaics in the monochromatic case
+
+Can parametrize a to be a sigmoid, thing to consider eventually (not right now). 
+
+
+Greg experiments:
+1- Go back to 1 channel case (full monochrome case, actually Nayoung's model)
+(Then work your way back up to 3 channels)
+2- Focus on 2 channels 
