@@ -28,32 +28,20 @@ import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
 from sklearn.mixture import GaussianMixture
 import scipy.optimize as opt
+import scipy
 #import cv2
 
+#save1 = '240218-054224'
+#save2 = '240220-020901'
 
-#save = '240107-204731' #SGD, lagrange
-#save = '240108-090323' #SGD, Gamma
+#save1 = '240218-054224'
+#save2 = '240226-141419'
 
+save1 = '240225-003740'
+save2 = '240223-134550'
 
-#save = '240117-114908' #Gamma with gradient descent 
-
-#save ='240122-000845' #SGD, Lagrange, keep track of cov matrices and gradient
-
-#save = '240126-142927'# 100x100 Lagrange
-
-#save = '240125-183448' #DoG parametrization, no patience
-#save = '240129-142655' #Patience okat but no DoG parametrization
-save = '240203-214427'
-
-#save = '230705-141246'
-save = '230821-024538'
-
-save ='240210-215844'
-
-#save = '240212-143644' #Experiment with [M,M,M] channels 
-
-path = "../../saves/" + save + "/" 
-
+path1 = "../../saves/" + save1 + "/" 
+path2 = "../../saves/" + save2 + "/" 
 class Analysis():
         def __init__(self, path, epoch = None):
             self.interval = 1000
@@ -69,13 +57,18 @@ class Analysis():
             self.max_iteration = int(last_cp_file[11:-3])
             self.iterations = np.array(range(self.interval,self.max_iteration,self.interval))
             self.cp = torch.load(path + last_cp_file)
-            self.model= torch.load(path + last_model_file)
+            self.model = torch.load(path + last_model_file)
             
-            try: self.firing_restriction = self.cp['args']['firing_restriction']
-            except: print('Firing restriction not specified')
-            self.shape = self.cp['args']['shape']
+            if 'firing_restriction' in self.cp['args'].keys():
+                self.firing_restriction = self.cp['args']['firing_restriction']
+            else:
+                self.firing_restriction = 'Lagrange'
+
+            if 'shape' in self.cp['args'].keys():
+                self.shape = self.cp['args']['shape']
+            else: self.shape = None
             
-            if self.cp['args']['shape'] is None:
+            if self.shape is None:
                 self.parametrized = False
             else:
                 self.parametrized = True
@@ -83,14 +76,23 @@ class Analysis():
             
             self.resp = None
             self.kernel_size = self.cp['args']['kernel_size']
-            self.n_colors = self.cp['args']['n_colors']
+            
+            if 'n_colors' in self.cp['args'].keys():
+                self.n_colors = self.cp['args']['n_colors']
+            else:
+                self.n_colors = 1
+                
             self.n_neurons = self.cp['args']['neurons']
-            self.w_flat = self.cp['weights'].cpu().detach().numpy()
+            
+            if 'weights' in self.cp.keys():
+                self.w_flat = self.cp['weights'].cpu().detach().numpy()
+            else:
+                self.w_flat = self.model.encoder.W.cpu().detach().numpy()
             self.w = reshape_flat_W(self.w_flat, self.n_neurons, self.kernel_size, self.n_colors)
             self.W = self.w
             
             
-            self.L2_color = norm(self.w,axis = (1,2))
+            #self.L2_color = norm(self.w,axis = (1,2))
            
 
             
@@ -108,6 +110,7 @@ class Analysis():
             self.rd = torch.unsqueeze(rd,1)
             
             
+        def get_DoG_params(self):
             if self.parametrized:
                 self.a = self.model.encoder.shape_function.a.cpu().detach().numpy()
                 self.b = self.model.encoder.shape_function.b.cpu().detach().numpy()
@@ -126,9 +129,11 @@ class Analysis():
                     
                 self.centers_round = np.clip(round_kernel_centers(self.kernel_centers), 0, self.kernel_size -1)
                 self.RF_size = self.kernel_size
-                self.RF_centers = self.kernel_centers
+                self.RF_centers = self.kernel_centers 
             else:
                 self.find_kernel_centers()
+                self.RF_centers = self.kernel_centers
+                self.RF_size = self.kernel_size
                 
         def fit_Gaussian_2D(self, xy, x0, y0, amp_c, sigma_c):
             x,y = xy
@@ -144,19 +149,22 @@ class Analysis():
             n_neurons = self.W.shape[0]; kernel_size = self.W.shape[1]
             all_c = np.zeros([2, n_neurons])
             W = np.mean(abs(self.W), 3)
-            #W = abs(np.mean(W,3))
+            
+            
             initial_guess = (kernel_size/2,kernel_size/2,1,1)
             x = np.linspace(0,kernel_size-1,kernel_size)
             y = np.linspace(0,kernel_size-1,kernel_size)
             x, y = np.meshgrid(x,y)
-            
+            gauss_params = np.zeros([self.n_neurons, 4])
             for n in range(n_neurons):
                 try:
                     params, cov = opt.curve_fit(self.fit_Gaussian_2D, (x,y), W[n,:,:].ravel(), p0 = initial_guess, maxfev=2000)
                     all_c[:,n] = params[0:2]
+                    gauss_params[n,:] = params
                 except RuntimeError: 
                     all_c[:,n] = [kernel_size/2, kernel_size/2]
             kernel_centers = np.flip(np.transpose(all_c),1)
+            self.gauss_params = gauss_params
             self.kernel_centers = np.clip(kernel_centers, 0, np.inf)   
         
         def get_params_time(self):
@@ -219,7 +227,7 @@ class Analysis():
             self.type = np.transpose(type2)
             
         
-        def make_mosaic(self, mosaic_type = None, ax = None, plot_size = False, save_fig = False):
+        def make_mosaic(self, mosaic_type = None, ax = None, plot_size = False, save_fig = False, color = 'white'):
             if save_fig:
                 matplotlib.use('agg')
                 Videos_folder = '../Videos/' + save 
@@ -249,7 +257,7 @@ class Analysis():
                 y = kernel_centers[n, 1]
                     
                 if self.type[n] == mosaic_type or mosaic_type is None:
-                    ax.plot(x, y, marker = marker, markersize = 12, color = 'white')
+                    ax.plot(x, y, marker = marker, markersize = 12, color = color)
 
                     if plot_size and self.all_params is not None:
                         res_ratio = self.kernel_size/self.W.shape[1]
@@ -261,11 +269,12 @@ class Analysis():
                     
         def make_mosaic_type(self, plot_size = False):
             n_types = max(self.type) + 1
+            colors = ['red', 'blue']
             fig_len = math.ceil(np.sqrt(n_types))
             fig, axes = plt.subplots(fig_len, fig_len)
             axes = axes.flatten()
             for t in range(n_types):
-                self.make_mosaic(mosaic_type = t, ax = axes[t], plot_size = plot_size)
+                self.make_mosaic(mosaic_type = t, ax = axes[0], plot_size = plot_size, color = colors[t])
             axes_remove = axes.shape[0] - n_types
             for i in range(axes_remove):
                 axes[-(i+1)].set_axis_off()
@@ -501,9 +510,7 @@ class Analysis():
             self.df_pairs = pd.DataFrame(data = df_list)
             self.df_pairs['same'] = self.df_pairs['type1'] == self.df_pairs['type2']
             
-        def radial_averages(self, rad_range = None, high_res = True):
-            if rad_range is None:
-                rad_range = int(self.RF_size/2)
+        def radial_averages(self, rad_range, high_res = True):
 
             all_y = np.around(self.RF_centers[:,0]).astype(int)
             all_x = np.around(self.RF_centers[:,1]).astype(int)
@@ -547,10 +554,10 @@ class Analysis():
         def zero_crossings_obs(self):
             zero_cross = np.zeros(self.n_neurons)
             for n in range(self.n_neurons):
-                maxes = np.max(test.rad_avg[n,:,:], axis = 1)
-                mins = np.min(test.rad_avg[n,:,:], axis = 1)
+                maxes = np.max(self.rad_avg[n,:,:], axis = 1)
+                mins = np.min(self.rad_avg[n,:,:], axis = 1)
                 signs = (maxes > abs(mins)).astype(int)
-                crosses = np.roll(signs, -1) - signs != 0
+                crosses = np.roll(signs, -1) - (signs != 0).astype(int)
                 first_cross = np.where(crosses)[0]
                 zero_cross[n] = first_cross
         
@@ -559,7 +566,7 @@ class Analysis():
             maxes = np.max(self.rad_avg, axis = 2)
             mins = np.min(self.rad_avg, axis = 2)
             signs = (maxes > abs(mins)).astype(int)
-            crosses = np.roll(signs, -1, axis = 1) - signs != 0
+            crosses = np.roll(signs, -1, axis = 1) - (signs != 0).astype(int)
             for n in range(self.n_neurons):
                 if crosses[n,:].any():
                     zero_cross[n] = np.where(crosses[n,:])[0][0] + 1
@@ -724,7 +731,7 @@ class Analysis():
                             RF_pca[comp, x , y, color] = comps[comp, dist, color]
             self.RF_pca = RF_pca
             
-        def fit_DoG(self, device = "cuda:0", LR = 0.1, n_steps = 20000):
+        def fit_DoG(self, device = "cuda:0", LR = 0.001, n_steps = 20000):
             kernel_centers = nn.Parameter(torch.tensor(self.kernel_centers, device = device))
             DoG_mod = shapes.get_shape_module("difference-of-gaussian")(torch.tensor(self.kernel_size, device = device), self.n_colors, torch.tensor(self.n_neurons, device = device)).to(device)
             params = DoG_mod.shape_params
@@ -745,6 +752,49 @@ class Analysis():
             self.a, self.b, self.c, self.d = DoG_mod.a.cpu().numpy(), DoG_mod.b.cpu().numpy(), DoG_mod.c.cpu().numpy(), DoG_mod.d.cpu().numpy()
             self.max_d = np.argmax(abs(self.d), axis = 0)
             self.all_params = params.detach().cpu().numpy()
+            self.kernel_centers = kernel_centers.detach().cpu().numpy()
+            
+            r_coefs = []
+            for i in range(self.n_neurons):
+              fit_flat = RFs_fit[i,:,:,:].flatten()
+              og_flat = self.w[i,:,:,:].flatten()
+              coef = np.corrcoef(og_flat, fit_flat)
+              r_coefs.append(coef[1,0])  
+             
+            self.DoG_r = np.array(r_coefs)
+            
+        def compare_DoG_fits(self, n):
+            fig, axes = plt.subplots(1,2)
+            axes[0].imshow(scale(self.w[n,:,:,:]))
+            axes[0].set_title("Unparametrized RF", size = 30)
+            axes[1].imshow(scale(self.RFs_fit[n,:,:,:]))
+            axes[1].set_title("DoG fit", size = 30)
+            plt.suptitle("cor = " + str(round(self.DoG_r[n],4)) + ", " + save + " #" + str(n), size = 30)
+        
+        def DoG_fit_func(self, shape, centers):
+            def W_from_shapes(params):
+                shape.shape_params = nn.Parameter(torch.tensor(params, device = "cuda:0"), requires_grad = False)
+                fit = shape(torch.tensor(centers, device = "cuda:0")).detach().cpu().numpy()
+                return np.sum(self.w_flat - fit)**2
+            return W_from_shapes
+            
+            
+        def fit_DoG_scipy(self, device = "cuda:0"):
+            DoG_mod = shapes.get_shape_module("difference-of-gaussian")(torch.tensor(self.kernel_size, device = device), self.n_colors, torch.tensor(self.n_neurons, device = device)).to(device)
+            init_params = DoG_mod.shape_params
+            fun = self.DoG_fit_func(DoG_mod, self.kernel_centers)
+            optimization = scipy.optimize.minimize(fun, init_params.detach().cpu().numpy(), method = "Nelder-Mead")
+            params = np.swapaxes(optimization['x'].reshape([self.n_neurons, 4*self.n_colors]),0,1)
+            
+            DoG_mod.shape_params = nn.Parameter(torch.tensor(params, device = device), requires_grad = False)
+            RFs_DoG = DoG_mod(torch.tensor(self.kernel_centers, device = device)).detach().cpu().numpy()
+            
+            RFs_fit = np.swapaxes(np.reshape(RFs_DoG, [self.n_colors,self.kernel_size,self.kernel_size,self.n_neurons]), 0, 3)
+            self.RFs_fit = RFs_fit
+            self.DoG_mod = DoG_mod
+            self.a, self.b, self.c, self.d = DoG_mod.a.cpu().numpy(), DoG_mod.b.cpu().numpy(), DoG_mod.c.cpu().numpy(), DoG_mod.d.cpu().numpy()
+            self.max_d = np.argmax(abs(self.d), axis = 0)
+            self.all_params = params
             
             r_coefs = []
             for i in range(self.n_neurons):
@@ -754,38 +804,30 @@ class Analysis():
               r_coefs.append(coef[1,0])  
              
             self.DoG_r = r_coefs
-            
-        def compare_DoG_fits(self, n):
-            fig, axes = plt.subplots(1,2)
-            axes[0].imshow(scale(self.w[n,:,:,:]))
-            axes[0].set_title("Unparametrized RF", size = 30)
-            axes[1].imshow(scale(self.RFs_fit[n,:,:,:]))
-            axes[1].set_title("DoG fit", size = 30)
-            plt.suptitle("cor = " + str(round(self.DoG_r[n],4)) + ", " + save + " #" + str(n), size = 30)
-            
-
         
             
         
-        def __call__(self):
+        def __call__(self, n_comps):
             plt.close('all')
+            self.get_DoG_params()
             #self.get_params_time()
             if self.parametrized:
-                self.increase_res(100, norm_size = True)
+                #self.increase_res(18, norm_size = False)
                 
                 #self.kernels_image = self.make_kernels_image(self.w, n_neurons = 50)
-                self.radial_averages(15)
+                self.radial_averages(5)
                 self.pca_radial_average(plot = False)
-                self.make_RF_from_pca()
-                self.get_pathways(n_comps = 5)
+                #self.make_RF_from_pca()
+                self.get_pathways(n_comps = n_comps)
                 self.zero_crossings()
             else:
                 self.fit_DoG()
-                self.increase_res(100, norm_size = True)
-                self.radial_averages(15)
+                #self.fit_DoG_scipy()
+                #self.increase_res(18, norm_size = False)
+                self.radial_averages(5)
                 self.pca_radial_average(plot = False)
-                self.make_RF_from_pca()
-                self.get_pathways()
+                #self.make_RF_from_pca()
+                self.get_pathways(n_comps = n_comps)
                 self.zero_crossings()
             matplotlib.use("QtAgg")
                 
@@ -901,7 +943,9 @@ class Analysis_time():
         
     
 
-test = Analysis(path)
-test()
-test_all = Analysis_time(path, interval = 10000)
-test_all.epoch_metrics()
+test1 = Analysis(path1)
+test2 = Analysis(path2)
+test1(2), test2(2)
+#test()
+#test_all = Analysis_time(path1, interval = 10000)
+#test_all.epoch_metrics()
