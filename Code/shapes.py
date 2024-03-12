@@ -22,7 +22,7 @@ class Shape(nn.Module):
             params = torch.tensor(params_pre).unsqueeze(-1).repeat(1, num_shapes)
             for p in range(params.shape[0]):
                 print(params.shape, "params.shape")
-                params[p, :] = torch.normal(mean=params[p,:], std = torch.tensor(1.0).repeat(num_shapes))      
+                params[p, :] = torch.normal(mean=params[p,:], std = torch.tensor(1).repeat(num_shapes))      
         else:
             params = torch.tensor(initial_parameters)
         #print(torch.var(params, dim = 1))
@@ -48,7 +48,7 @@ class Shape(nn.Module):
 
 
 class DifferenceOfGaussianShape(Shape):
-    def __init__(self, kernel_size, n_colors, num_shapes=1, init_params = [-0.5, -1, -0.5, 0.0], read = False):
+    def __init__(self, kernel_size, n_colors, num_shapes=1, init_params = [-1, 0, 2, 0.0], read = False):
         super().__init__(kernel_size, init_params, num_shapes, n_colors, read)
     
 
@@ -64,9 +64,11 @@ class DifferenceOfGaussianShape(Shape):
 
         a_pre = logA.exp()
         b = logB.exp()
-        a = a_pre + b  # make the center smaller than the surround
+        a = a_pre # make the center smaller than the surround
+        b = 1/(1/a + 1/b)
         c = logitC.sigmoid()  #to keep it within (0, 1)
-        d = d/torch.sqrt(torch.sum(d**2, 0))
+        d = d.sigmoid() - 0.5
+        #d = d/torch.sqrt(torch.sum(d**2, 0))
         self.a, self.b, self.c, self.d = a.detach(), b.detach(), c.detach(), d.detach()
         
         a = torch.unsqueeze(a,0)

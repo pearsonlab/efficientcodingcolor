@@ -24,7 +24,8 @@ class Encoder(nn.Module):
                  data_covariance,
                  fix_centers: bool,
                  n_colors: int,
-                 n_mosaics: int):
+                 n_mosaics: int,
+                 corr_noise_sd: float):
         super().__init__()
         self.kernel_size = kernel_size
         self.image_channels = n_colors
@@ -38,6 +39,8 @@ class Encoder(nn.Module):
         self.fix_centers = fix_centers
         self.n_mosaics = n_mosaics
         
+        if corr_noise_sd != 0 and corr_noise_sd is not None:
+            self.nx_matrix(corr_noise_sd)
         if shape is not None:
            kernel_x = torch.rand(self.J) * (kernel_size - 1) / 2.0 + (kernel_size - 1) / 4.0
            kernel_y = torch.rand(self.J) * (kernel_size - 1) / 2.0 + (kernel_size - 1) / 4.0
@@ -46,7 +49,7 @@ class Encoder(nn.Module):
            #kernel_x shape is [100]
            
            
-
+    
 
 
            if not fix_centers:
@@ -68,7 +71,7 @@ class Encoder(nn.Module):
         
         self.logA = nn.Parameter(0.02 * torch.randn(self.J))  # gain of the nonlinearity
         self.logB = nn.Parameter(0.02 * torch.randn(self.J) - 1)  # bias of the nonlinearity
-        
+        #  self.nx_cov = self.correlated_input_noise()
         self.test_counter = 0
         
         #self.params = nn.ModuleDict({
@@ -151,7 +154,7 @@ class Encoder(nn.Module):
         with torch.no_grad():
             self.W /= self.W.norm(dim=0, keepdim=True)
     
-    def correlated_input_noise(self, B):
+    def nx_matrix(self, B):
         x, y = np.meshgrid(np.array(range(self.kernel_size)), np.array(range(self.kernel_size)))
 
         x1, y1 = x.flatten(), y.flatten()
@@ -161,18 +164,25 @@ class Encoder(nn.Module):
             for pos2 in range(x2.shape[0]):
                 distance = np.sqrt((x1[pos1]-x2[pos2])**2 + (y1[pos1]-y2[pos2])**2)
                 cov[pos1, pos2] = math.exp(-distance/B)
-        return cov
+        
+        self.nx_cov = cov
+        self.nx_L = torch.tensor(np.linalg.cholesky(cov), dtype = torch.float32, device = "cuda:0")
 
     def forward(self, image: torch.Tensor, h_exp: torch.Tensor, firing_restriction, corr_noise_sd, record_C = False):
         D = self.D
         L = image.shape[1]
+        B = image.shape[0]
         
         if self.shape is not None:
             self.W = self.shape_function(self.kernel_centers, self.kernel_polarities)
         gain = self.logA.exp()  # shape = [J]
         bias = self.logB.exp()
-        nx = self.input_noise * torch.randn_like(image) #David: potential bug here
         
+        if corr_noise_sd == 0 or corr_noise_sd == None:
+            nx = self.input_noise * torch.randn_like(image) #David: potential bug here
+        else:
+            nx = torch.matmul(self.input_noise * torch.randn([B, L, self.D], device = "cuda:0"), torch.transpose(self.nx_L,0,1))
+
         #David: I permuted image so the tensor multiplication 
         #(y = input @ self.w from spatiotemporal) would have consistent dimensions. 
         image_nx = image + nx
@@ -184,7 +194,7 @@ class Encoder(nn.Module):
         nr = self.output_noise * torch.randn_like(y)
         z = gain * (y - bias) + nr  # z.shape = [B, T, J]
 
-
+        
         if self.nonlinearity == "relu":
             r = gain * (y - bias).relu()
             
@@ -283,14 +293,15 @@ class RetinaVAE(nn.Module):
                  data_covariance,
                  fix_centers,
                  n_colors,
-                 n_mosaics):  
+                 n_mosaics,
+                 corr_noise_sd):  
         super().__init__()
         self.beta = beta
         self.rho = rho
         self.D = kernel_size * kernel_size
 
         assert nonlinearity in {"relu", "softplus"}
-        self.encoder = Encoder(kernel_size, neurons, nonlinearity, input_noise, output_noise, shape, individual_shapes, data_covariance, fix_centers, n_colors, n_mosaics)
+        self.encoder = Encoder(kernel_size, neurons, nonlinearity, input_noise, output_noise, shape, individual_shapes, data_covariance, fix_centers, n_colors, n_mosaics, corr_noise_sd)
 
         self.Lambda = nn.Parameter(torch.rand(neurons))
 
