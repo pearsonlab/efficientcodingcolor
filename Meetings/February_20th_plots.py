@@ -30,6 +30,7 @@ plt.xlabel("Gaussian fit SD", size = 50)
 plt.ylabel("Number of neurons", size = 50)
 plt.xticks(size = 35)
 plt.yticks(size=35)
+plt.title("DoG fits to unparametrized RFs", size = 50)
 
 plt.figure()
 sns.histplot(test1.c[0,:], bins = 100)

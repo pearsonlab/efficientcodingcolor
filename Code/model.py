@@ -39,7 +39,8 @@ class Encoder(nn.Module):
         self.fix_centers = fix_centers
         self.n_mosaics = n_mosaics
         
-        self.nx_matrix(corr_noise_sd)
+        if corr_noise_sd != 0 and corr_noise_sd is not None:
+            self.nx_matrix(corr_noise_sd)
         if shape is not None:
            kernel_x = torch.rand(self.J) * (kernel_size - 1) / 2.0 + (kernel_size - 1) / 4.0
            kernel_y = torch.rand(self.J) * (kernel_size - 1) / 2.0 + (kernel_size - 1) / 4.0

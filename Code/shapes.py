@@ -22,7 +22,7 @@ class Shape(nn.Module):
             params = torch.tensor(params_pre).unsqueeze(-1).repeat(1, num_shapes)
             for p in range(params.shape[0]):
                 print(params.shape, "params.shape")
-                params[p, :] = torch.normal(mean=params[p,:], std = torch.tensor(0.1).repeat(num_shapes))      
+                params[p, :] = torch.normal(mean=params[p,:], std = torch.tensor(1).repeat(num_shapes))      
         else:
             params = torch.tensor(initial_parameters)
         #print(torch.var(params, dim = 1))
@@ -64,7 +64,7 @@ class DifferenceOfGaussianShape(Shape):
 
         a_pre = logA.exp()
         b = logB.exp()
-        a = a_pre  # make the center smaller than the surround
+        a = a_pre # make the center smaller than the surround
         b = 1/(1/a + 1/b)
         c = logitC.sigmoid()  #to keep it within (0, 1)
         d = d.sigmoid() - 0.5

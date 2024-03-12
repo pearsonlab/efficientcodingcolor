@@ -36,14 +36,14 @@ def set_seed(seed=None, seed_torch=True):
 
 
 def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S"),
-          iterations: int = 1_000_000,
+          iterations: int = 2_000_000,
           #iterations: int = 3,
           batch_size: int = 128,
           data: str = "imagenet",
           kernel_size: int = 18,
           circle_masking: bool = True,
           dog_prior: bool = False,
-          neurons: int = 100,  # number of neurons, J
+          neurons: int = 300,  # number of neurons, J
           jittering_start: Optional[int] = 200000, #originally 200000
           jittering_stop: Optional[int] = 500000, #originally 500000
           jittering_interval: int = 5000,
@@ -51,11 +51,11 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           centering_weight: float = 0.02,
           centering_start: Optional[int] = 200000, #originally 200000
           centering_stop: Optional[int] = 500000, #originally 500000
-          input_noise: float = 0.4,
-          output_noise: float = 3.0,
+          input_noise: float = 0.02,
+          output_noise: float = 0.5,
           nonlinearity: str = "softplus",
           beta: float = -0.5,
-          n_colors = 1,
+          n_colors = 2,
           shape: Optional[str] = 'difference-of-gaussian', # "difference-of-gaussian" for Oneshape case #BUG: Can't use color 1 with "difference-of-gaussian"
           individual_shapes: bool = True,  # individual size of the RFs can be different for the Oneshape case
           optimizer: str = "sgd",  # can be "adam"
@@ -71,7 +71,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           FR_learning_rate = 0.01,
           LR_reduce_epochs = [],
           LR_ratio = 1,
-          corr_noise_sd = 4): #"Lagrange" or "Gamma" or "None" or "Two_losses"
+          corr_noise_sd = 0): #"Lagrange" or "Gamma" or "None" or "Two_losses"
 
     train_args = deepcopy(locals())  # keep all arguments as a dictionary
     for arg in sys.argv:
