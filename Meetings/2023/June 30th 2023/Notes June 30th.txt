@@ -1,0 +1,16 @@
+Plot in RF size in the mosaic plot 
+Reduce kernel size to 12x12 instead of 18x18
+Could run 400 or 500. 
+John: Maximum running time should be 18 to 24 hours. After that we need to reconsider. 
+
+- Look at how often "blue" and "black" neurons are co-active. Draw the responses. 
+Pick some of the RFs that are super close together and see how often they are co-active. 
+
+*** Plot the covariance of LMS
+John: Covariance matrix of natural images might be a football 
+
+*Cool stuff: a is more precise for blacks, which fits what occurs in the retina! 
+
+David: Need a way to analyze the surround the same way I analyze the centers. 
+
+Greg: Do some readings (added on slack)

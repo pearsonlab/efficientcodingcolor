@@ -36,7 +36,7 @@ def set_seed(seed=None, seed_torch=True):
 
 
 def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S"),
-          iterations: int = 2_000_000,
+          iterations: int = 2_200_000,
           #iterations: int = 3,
           batch_size: int = 128,
           data: str = "imagenet",
@@ -44,25 +44,25 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           circle_masking: bool = True,
           dog_prior: bool = False,
           neurons: int = 300,  # number of neurons, J
-          jittering_start: Optional[int] = 200000, #originally 200000
-          jittering_stop: Optional[int] = 500000, #originally 500000
+          jittering_start: Optional[int] = 0, #originally 200000
+          jittering_stop: Optional[int] = 0, #originally 500000
           jittering_interval: int = 5000,
           jittering_power: float = 0.25,
           centering_weight: float = 0.02,
-          centering_start: Optional[int] = 200000, #originally 200000
-          centering_stop: Optional[int] = 500000, #originally 500000
-          input_noise: float = 0.02,
-          output_noise: float = 0.5,
+          centering_start: Optional[int] = 0, #originally 200000
+          centering_stop: Optional[int] = 0, #originally 500000
+          input_noise: float = 0.2,
+          output_noise: float = 2,
           nonlinearity: str = "softplus",
           beta: float = -0.5,
           n_colors = 2,
           shape: Optional[str] = 'difference-of-gaussian', # "difference-of-gaussian" for Oneshape case #BUG: Can't use color 1 with "difference-of-gaussian"
           individual_shapes: bool = True,  # individual size of the RFs can be different for the Oneshape case
           optimizer: str = "sgd",  # can be "adam"
-          learning_rate: float = 0.01, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
+          learning_rate: float = 0.001, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
           rho: float = 1,
           maxgradnorm: float = 20.0,
-          load_checkpoint: str = None, #"230705-141246",  # checkpoint file to resume training from
+          load_checkpoint: str = "240301-055438_test4", #"230705-141246",  # checkpoint file to resume training from
           fix_centers: bool = False,  # used if we want to fix the kernel_centers to learn params
           n_mosaics = 10,
           whiten_pca_ratio = None,
@@ -130,7 +130,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
     all_params = [p for n, p in model.named_parameters() if p.requires_grad]
     last_iteration = 0
     if load_checkpoint is not None:
-        path = "../saves/" + load_checkpoint + "/"
+        path = "../../saves/" + load_checkpoint + "/"
         last_cp = find_last_cp(path)
         checkpoint = torch.load(path + last_cp)
         if not isinstance(checkpoint, dict):
@@ -154,6 +154,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
     C_zx_estimate = torch.zeros([neurons,neurons], device = 'cpu')
     with trange(last_iteration + 1, iterations + 1, ncols=99) as loop:
         for iteration in loop:
+            
             if iteration % 1000 == 0 or iteration == 1:
                 record_C = True
             else:

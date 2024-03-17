@@ -1,6 +1,0 @@
-- Verify that covariance of nx is the right thing by 
-sampling 
-
-- Check what epxonential function looks like with B = 2. 
-
-Make plots with sd of center, not precision (1/sd). 

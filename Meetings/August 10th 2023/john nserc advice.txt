@@ -1,8 +1,0 @@
--Ask Nayoung for her prelim document
-
-- Cartoon retina
-- Model diagraph
-- Show prelim result. Red-green opponent cells, blue/yellow, etc. 
-- Need to generalize. WHat do we do with information from multiple channels? 
-
-Exploration: different kind of noise, different layers

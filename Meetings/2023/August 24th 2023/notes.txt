@@ -1,0 +1,26 @@
+-Greg: Look at what the images look like (sanity check, something weird might be going on!)
+- Just make sure that there is no clipping 
+David: Triple check that there isn't a bug somewhere? idk 
+
+John forget space, try to solve this on paper 
+We could simulate a super simple small model 
+
+John & Greg: Compute 3x3 correlation matrix for the transformed data 
+
+***Greg: Have more than one mosaic when we fix the centers
+Have 6 of them, all have the same centers 
+
+John's advice: Not a bad idea to stop model after a couple hours to check if everything runs well 
+
+Gaussian mixture: Plot the ellipsoid over the points, visualization trick! 
+
+When doing clustering, decide how many PCs based on variance each of them explains. 
+
+John: It really helps to have a worksheet with all the papers you've read about a topic
+
+**Read all the Baccus papers
+Greg Field x pillow lab
+
+1- Train kernel centers
+2- Train different pca color split
+3- Get a different machine!!!

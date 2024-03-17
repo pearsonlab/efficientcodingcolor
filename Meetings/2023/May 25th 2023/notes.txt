@@ -1,0 +1,8 @@
+- Take values from Nayoung's paper and input them into the model to make sure it works. 
+- Also train Nayoung's model without colors 
+
+- Try fitting with different initialized c values
+
+- Make some 1D plots 
+
+- Do the math for line 71

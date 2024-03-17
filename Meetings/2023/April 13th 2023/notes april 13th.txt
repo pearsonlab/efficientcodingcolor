@@ -1,0 +1,16 @@
+Double-check that blue ON also have yellow OFF at same location
+
+- Have different non-linearity for every color channel 
+
+- Could also plot each channel separately 
+
+- Lets run 200 RGCs with more than 1.5m epochs - let's check in tensorboard if the RFs are still changing
+
+
+Johns thinks the 100 RGCs mosaics haven't fully settled because some RFs are smaller 
+
+Nayoung usually has proportional number of steps to RGCs - so 2m epochs (at least) 
+
+John: At some point we have to parametrize more so we can run more models faster and easier 
+
+Nayoung: One of the reasons why I get ON/OFF receptive field might have to do with the auto-correlation for some colors being wider than others 

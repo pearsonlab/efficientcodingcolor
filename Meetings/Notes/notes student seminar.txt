@@ -1,0 +1,34 @@
+Need a cocktail party pitch - first slide 
+then its background slides - need to explain gap in knowledge 
+
+Dont forget to have a slide about weaknesses at the end 
+
+Have some backup slides for questions people may ask - in case I am short on time 
+
+Make presentation understandable for wide audience 
+Make intro and conclusion first - tie back theads from the beginning at the end 
+
+- Have outline and come back to it and gray out what I went through 
+
+***Have title for every slide 
+
+David: Explain LM model instead of STA******
+
+
+---------------------------------------------
+
+What's cool about the paper is that they can replicate so many things, and generate hypotheses
+I should mention most findings and show that the model replicates it 
+
+Explain ON and OFF pathways
+Use retina figure to introduce ON and OFF pathways (ionotropic vs metabotropic receptors decide ON vs OFF) 
+Pathways arise at bipolar cells level 
+
+Add ON and OFF bipolar cell on the figure 
+
+Change STA slide to a LM slide 
+Can be done with white noise OR natural image (pros and cons of both) 
+LM model is a black box between input and output, but CNN allows us to infer the computations in between 
+
+****The gap in knowledge: LM model is a black box, but what's in between? CNN answers this question! 
+LM models work best with very simple stimuli 

@@ -29,25 +29,26 @@ import matplotlib.patches as mpatches
 from sklearn.mixture import GaussianMixture
 import scipy.optimize as opt
 import scipy
+from model import RetinaVAE, OutputTerms, OutputMetrics
 #import cv2
 
 #save = '240125-183448' #3 channels classic, parametrized
-save = '240225-003740' #1 channel classic, unparametrized
+#save = '240225-003740' #1 channel classic, unparametrized
 
 
-#save1 = '240210-215844' #M and S channels
+#save = '240210-215844' #M and S channels
 
-#save1 = '240301-055438'
-#save1 = '240303-202020'
+save = '240301-055438_test4'
+#save = '240303-202020'
 #save1 = '240302-060121'
 
 
 path = "../../saves/" + save + "/" 
 #path2 = "../../saves/" + save2 + "/" 
 
-n_clusters_global = 6
-n_comps_global = 3
-rad_dist = 8
+n_clusters_global = 4 #Best value for 240301-055438 is 4
+n_comps_global = 3 #Best value for 240301-055438 is 3
+rad_dist_global = 5 #Best value for 240301-055438 is 5
 class Analysis():
         def __init__(self, path, epoch = None):
             self.interval = 1000
@@ -96,6 +97,17 @@ class Analysis():
                 self.w_flat = self.model.encoder.W.cpu().detach().numpy()
             self.w = reshape_flat_W(self.w_flat, self.n_neurons, self.kernel_size, self.n_colors)
             self.W = self.w
+            
+            center_surround_ratio = []
+            for n in range(self.n_neurons):
+                ON_sum = np.sum(np.clip(self.W[n,:,:,:],0,np.inf))
+                OFF_sum = abs(np.sum(np.clip(self.W[n,:,:,:],-np.inf,0)))
+                if np.max(self.W[n,:,:,:]) > abs(np.min(self.W[n,:,:,:])):
+                    ratio = ON_sum/(ON_sum + OFF_sum)
+                else:
+                    ratio = OFF_sum/(ON_sum + OFF_sum)
+                center_surround_ratio.append(ratio)
+            self.center_surround_ratio = center_surround_ratio
             
             
             #self.L2_color = norm(self.w,axis = (1,2))
@@ -234,7 +246,7 @@ class Analysis():
                 plt.savefig(mosaic_folder + '/' + 'center_mosaic_' + str(int(self.epoch/self.interval)) + '.png')
                 plt.close('all')
                     
-        def make_mosaic_type(self, separate = False, plot_size = False):
+        def mosaic_type(self, separate = True, plot_size = False):
             n_types = max(self.type) + 1
             colors =  ['black', 'blue', 'red', 'orange', 'green', 'purple', 'grey', 'cyan', 'teal']
             if separate:
@@ -316,7 +328,9 @@ class Analysis():
                 nearest_pairs.append(pair)
             return nearest_pairs
         
-        def plot3D(self, params, angles = None, size = 22, title = None, color_type = False, labels = 'PCA', ellipse = False):
+        def plot3D(self, params = None, angles = None, size = 22, title = None, color_type = True, labels = 'PCA', ellipse = False):
+            if params is None:
+                params = self.pca_transform
             colors = ['black', 'blue', 'red', 'orange', 'green', 'purple', 'grey', 'cyan', 'teal']
             if angles is not None:
                 elev, azim = angles
@@ -377,7 +391,7 @@ class Analysis():
         
             
         
-        def get_responses(self, batch = 100, n_cycles = 1000):
+        def get_responses(self, batch = 128, n_cycles = 1000):
             images, cov = self.get_images()
             self.model.encoder.data_covariance = cov
             resp = []
@@ -567,10 +581,11 @@ class Analysis():
                     
                     
                 
-        def plot_radial_averages(self, rad_avg, type_num = None, title = "", hspace = 0.5):
+        def plot_rads(self, type_num = None, title = "", hspace = 0.5):
             if type_num is not None:
-                rad_avg = rad_avg[np.where(self.type == type_num)[0],:]
-            
+                rad_avg = self.rad_avg[np.where(self.type == type_num)[0],:]
+            else:
+                rad_avg = self.rad_avg
             n_neurons = rad_avg.shape[0]
             size = round(np.sqrt(n_neurons))
             max_range = np.max(rad_avg)
@@ -771,7 +786,7 @@ class Analysis():
                 return np.sum(self.w_flat - fit)**2
             return W_from_shapes
             
-            
+            #Doesn't work right now :(
         def fit_DoG_scipy(self, device = "cuda:0"):
             DoG_mod = shapes.get_shape_module("difference-of-gaussian")(torch.tensor(self.kernel_size, device = device), self.n_colors, torch.tensor(self.n_neurons, device = device)).to(device)
             init_params = DoG_mod.shape_params
@@ -797,10 +812,40 @@ class Analysis():
               r_coefs.append(coef[1,0])  
              
             self.DoG_r = r_coefs
-        
+            
+        #Currently only works for 2 channels 
+        def change_d(self, cluster, d):
+            params = self.model.encoder.shape_function.shape_params.detach()
+            W = self.cp['weights'].detach()
+            half_W = int(W.shape[0]/len(d))
+            for n in range(self.n_neurons):
+                if self.type[n] == cluster:
+                    params[3,n] *= d[0]
+                    params[7,n] *= d[1]
+                    
+                    W[:half_W,n] *= d[0]
+                    W[half_W:,n] *= d[1]
+                    
+                    #rad[n,:,0] *= -1
+            #    if test.type[n] == 3:
+            #        params[7,n] *= -1
+                
+            params.requires_grad = True
+            self.model.encoder.shape_function.shape_params = nn.Parameter(params)
+            self.cp['model_state_dict']['encoder.shape_function.shape_params'] = nn.Parameter(params)
+            self.cp['weights'] = nn.Parameter(W)
+            
+            torch.save(self.model, path + "model-newD.pt")
+            torch.save(self.cp, path + "checkpoint-newD.pt")
             
         
-        def __call__(self, n_comps, rad_dist, n_clusters):
+        def __call__(self, n_comps = None, rad_dist = None, n_clusters = None):
+            if n_comps is None:
+                n_comps = n_comps_global
+            if rad_dist is None:
+                rad_dist = rad_dist_global
+            if n_clusters is None:
+                n_clusters = n_clusters_global
             plt.close('all')
             self.get_DoG_params()
             if self.parametrized:
@@ -827,31 +872,41 @@ class Analysis():
             #matplotlib.use("Qtagg")
 
 class Analysis_time():
-    def __init__(self, path, interval = 1000):
+    def __init__(self, path, interval, n_comps, rad_dist, n_clusters, start_epoch = 0, stop_epoch = np.inf):
         self.interval = interval
         last_cp_file = find_last_cp(path)
         last_model_file = find_last_model(path) 
         self.max_iteration = int(last_cp_file[11:-3])
-        self.iterations = np.array(range(self.interval,self.max_iteration + self.interval,self.interval))
+        self.iterations = np.array(range(start_epoch + self.interval,self.max_iteration,self.interval))
         self.n_analyses = int(self.max_iteration/self.interval)
+        
         all_analyses = []
 
         for iteration in self.iterations:
-            all_analyses.append(Analysis(path, epoch = iteration))
-            if iteration%100000 == 0:
-                print(iteration)
+            if iteration >= start_epoch and iteration <= stop_epoch:
+                try:
+                    all_analyses.append(Analysis(path, epoch = iteration))
+                except FileNotFoundError:
+                    print("Skipped epoch " + str(iteration) + " because file could not be found")
+                    
+                if iteration%100000 == 0:
+                    print(iteration)
         self.analyses = all_analyses
         self.last = self.analyses[-1]
-        self.last()
+        self.last(n_comps, rad_dist, n_clusters)
+        self.rad_dist = rad_dist
+        self.n_clusters = n_clusters
+        self.n_comps = n_comps
         
-    def make_mosaic_type_video(self, filename):
+    def mosaic_type_video(self, filename, separate, ref = -1):
         matplotlib.use('Qtagg')
         Videos_folder = '../Videos/' + save
-        self.analyses[-1]()
-        n_type = self.analyses[-1].type
+        self.analyses[ref](self.n_comps, self.rad_dist, self.n_clusters)
+        n_type = self.analyses[ref].type
         for n in range(self.n_analyses):
             self.analyses[n].type = n_type
-            self.analyses[n].make_mosaic_type()
+            self.analyses[n].get_DoG_params()
+            self.analyses[n].mosaic_type(separate)
             manager = plt.get_current_fig_manager()
             manager.full_screen_toggle()
             plt.savefig(Videos_folder + '/' + filename + '_' + str(n) + '.png')
@@ -860,7 +915,7 @@ class Analysis_time():
                 print(n, ' center mosaic')
             
         matplotlib.use('Qtagg')
-    def epoch_metrics(self):
+    def epoch_metrics(self, batch = 128, n_cycles = 100):
         det_nums = []
         det_denums = []
         i = 0
@@ -868,22 +923,38 @@ class Analysis_time():
         b = np.empty([self.last.n_colors, self.last.n_neurons, 0])
         c = np.empty([self.last.n_colors, self.last.n_neurons, 0])
         d = np.empty([self.last.n_colors, self.last.n_neurons, 0])
-        for iteration in self.iterations:
-            num = self.analyses[i].model.encoder.C_z.detach().cpu().numpy()
-            denum = self.analyses[i].model.encoder.C_zx.detach().cpu().numpy()
-            det_nums.append(np.linalg.det(num))
-            det_denums.append(np.linalg.det(denum))
+        losses = []
+        MI = []
+        images, cov = self.last.get_images()
+        for analysis in self.analyses:
+            #num = analysis.model.encoder.C_z.detach().cpu().numpy()
+            #denum = analysis.model.encoder.C_zx.detach().cpu().numpy()
+            #det_nums.append(np.linalg.det(num))
+            #det_denums.append(np.linalg.det(denum))
+            if n_cycles > 0:
+                for this_cycle in range(n_cycles):
+                    analysis.model.encoder.data_covariance = cov
+                    images_load = next(cycle(DataLoader(images, batch))).to('cuda')
+                    images_sample = images_load.reshape([batch,self.last.n_colors,self.last.kernel_size**2])
+                    loss =+ analysis.model(images_sample, h_exp = 0, firing_restriction = 'Lagrange', corr_noise_sd = 0).calculate_metrics(analysis.epoch, 'Lagrange').final_loss('Lagrange') #This is the line where forward gets called
+                    MI_temp =+ analysis.model(images_sample, h_exp = 0, firing_restriction = 'Lagrange', corr_noise_sd = 0).calculate_metrics(analysis.epoch, 'Lagrange').final_loss('None') #This is the line where forward gets called
+                loss = loss/n_cycles
+                MI_temp = MI_temp/n_cycles
+                losses.append(loss.detach().cpu().item())
+                MI.append(MI_temp.detach().cpu().item())
+                if i%10 == 0:
+                    print(i)
             #all_a = self.analyses[i].model.encoder.shape_function.a.cpu().detach().numpy()
-            
             a = np.append(a, np.expand_dims(self.analyses[i].model.encoder.shape_function.a.cpu().detach().numpy(), 2), axis = 2)
             b = np.append(b, np.expand_dims(self.analyses[i].model.encoder.shape_function.b.cpu().detach().numpy(), 2), axis = 2)
             c = np.append(c, np.expand_dims(self.analyses[i].model.encoder.shape_function.c.cpu().detach().numpy(), 2), axis = 2)
             d = np.append(d, np.expand_dims(self.analyses[i].model.encoder.shape_function.d.cpu().detach().numpy(), 2), axis = 2)
-            
             i += 1
         
         self.det_nums = det_nums
         self.det_denums = det_denums
+        self.MI = MI
+        self.losses = losses
         
         self.a, self.b, self.c, self.d = a,b,c,d
     
@@ -931,7 +1002,6 @@ class Analysis_time():
 
 test = Analysis(path)
 #test2 = Analysis(path2)
-test(n_comps_global, rad_dist, n_clusters_global)#, test2(2)
-#test()
-#test_all = Analysis_time(path1, interval = 10000)
+test(n_comps_global, rad_dist_global, n_clusters_global)#, test2(2)
+test_all = Analysis_time(path, 1000, n_comps_global, rad_dist_global, n_clusters_global, start_epoch = 2000000, stop_epoch = 2030000)
 #test_all.epoch_metrics()
