@@ -1,0 +1,30 @@
+Horizontal are simple
+Vertical are complex 
+Vertical are 3-4 times the RF size of the horizontal
+
+Not all ON-OFF cells are direction-selective
+
+
+For direction-selective dendrites (amacrine cells):
+Euler, Detwiler, Denk
+
+Greg idea:
+Use model from Pillow to estimate spatiotemporal RFs
+STA that's tilted in space-time
+
+
+1- Figure out linear case
+2- Check whether we're close to optimal solution (not perfect mosaic)
+3- Tune down learning rate as you get closer to optimum
+
+John: The restriction on firing rate is for every neuron
+NOT on the population 
+
+Greg idea: 
+Use VAE to reconstruct motion in natural images 
+Hope we can find ON-OFF DSGC
+
+
+I love that idea:
+Bake-in direction selectivity and look if we can replicate how these are distributed across the population
+We could: See if the set of natural movies matters 

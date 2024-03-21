@@ -1,0 +1,6 @@
+- Plot DoG, play with some parameters to understand what the parameters do better
+- Make the thing work lol
+- Read the papers John sent me!! ***
+
+- Write document for Nicolas
+- Do Coursera course

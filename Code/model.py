@@ -305,7 +305,7 @@ class RetinaVAE(nn.Module):
 
         self.Lambda = nn.Parameter(torch.rand(neurons))
 
-    def forward(self, x, h_exp, firing_restriction, corr_noise_sd = np.inf, record_C = False) -> OutputTerms:
+    def forward(self, x, h_exp, firing_restriction, corr_noise_sd = 0, record_C = False) -> OutputTerms:
         batch_size = x.shape[0]
         x = x.view(batch_size, -1, self.D)  # x.shape = [B, L, D] (L: input time points)
         

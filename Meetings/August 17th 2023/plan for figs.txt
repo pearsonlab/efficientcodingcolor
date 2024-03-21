@@ -1,5 +1,0 @@
-- Parameters over time
-- 50 Example RFs
-- Center colors 3D 
-- Rad avg 
-- PCA rad avg RFs - looks like trash without norm_size
