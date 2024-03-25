@@ -943,6 +943,7 @@ class Analysis_time():
         n_type = self.analyses[ref].type
         n = 0
         for analysis in self.analyses:
+            n += 1
             analysis.type = n_type
             analysis.get_DoG_params()
             analysis.mosaics(separate)
