@@ -36,7 +36,7 @@ def set_seed(seed=None, seed_torch=True):
 
 
 def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S"),
-          iterations: int = 2_500_000,
+          iterations: int = 2_000_000,
           #iterations: int = 3,
           batch_size: int = 128,
           data: str = "imagenet",
@@ -59,10 +59,10 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           shape: Optional[str] = 'difference-of-gaussian', # "difference-of-gaussian" for Oneshape case #BUG: Can't use color 1 with "difference-of-gaussian"
           individual_shapes: bool = True,  # individual size of the RFs can be different for the Oneshape case
           optimizer: str = "sgd",  # can be "adam"
-          learning_rate: float = 0.001, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
+          learning_rate: float = 0.01, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
           rho: float = 1,
           maxgradnorm: float = 20.0,
-          load_checkpoint: str = "240301-055438_test9", #"230705-141246",  # checkpoint file to resume training from
+          load_checkpoint: str = None, #"230705-141246",  # checkpoint file to resume training from
           fix_centers: bool = False,  # used if we want to fix the kernel_centers to learn params
           n_mosaics = 10,
           whiten_pca_ratio = None,
@@ -71,7 +71,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           FR_learning_rate = 0.01,
           LR_reduce_epochs = [],
           LR_ratio = 1,
-          corr_noise_sd = 0): #"Lagrange" or "Gamma" or "None" or "Two_losses"
+          corr_noise_sd = 0,
+          image_restriction = "torch.var(result) < 1"): #"Lagrange" or "Gamma" or "None" or "Two_losses"
 
     train_args = deepcopy(locals())  # keep all arguments as a dictionary
     for arg in sys.argv:
@@ -85,7 +86,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
     writer = SummaryWriter(log_dir=logdir)
     writer.add_text("train_args", json.dumps(train_args))
 
-    dataset = KyotoNaturalImages('kyoto_natim', kernel_size, circle_masking, device, n_colors)
+    dataset = KyotoNaturalImages('kyoto_natim', kernel_size, circle_masking, device, n_colors, restriction = image_restriction)
     if whiten_pca_ratio is not None:
         dataset.pca_color()
         dataset.whiten_pca(whiten_pca_ratio)
