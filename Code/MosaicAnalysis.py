@@ -35,13 +35,10 @@ from model import RetinaVAE, OutputTerms, OutputMetrics
 #save = '240125-183448' #3 channels classic, parametrized
 #save = '240225-003740' #1 channel classic, unparametrized
 
-
 #save = '240210-215844' #M and S channels
 
-save = '240301-055438_test4'
-#save = '240303-202020'
-#save1 = '240302-060121'
-
+save = '240301-055438_test2'
+#save2 = '240301-055438_test8'
 
 path = "../../saves/" + save + "/" 
 #path2 = "../../saves/" + save2 + "/" 
@@ -217,7 +214,7 @@ class Analysis():
                 if not os.path.exists(mosaic_folder):
                     os.mkdir(mosaic_folder)
             
-                
+            
             kernel_centers = self.kernel_centers
             if ax is None:
                 fig, ax = plt.subplots(1,1)
@@ -246,7 +243,7 @@ class Analysis():
                 plt.savefig(mosaic_folder + '/' + 'center_mosaic_' + str(int(self.epoch/self.interval)) + '.png')
                 plt.close('all')
                     
-        def mosaic_type(self, separate = True, plot_size = False):
+        def mosaics(self, separate = True, plot_size = False):
             n_types = max(self.type) + 1
             colors =  ['black', 'blue', 'red', 'orange', 'green', 'purple', 'grey', 'cyan', 'teal']
             if separate:
@@ -266,8 +263,24 @@ class Analysis():
                 axes_remove = axes.shape[0] - n_types
                 for i in range(axes_remove):
                     axes[-(i+1)].set_axis_off()
-                
         
+        def delete_mosaic(self, mosaic_num, save = False):
+            to_keep = self.type != mosaic_num
+            self.cp['model_state_dict']['encoder.shape_function.shape_params'] = self.cp['model_state_dict']['encoder.shape_function.shape_params'][:,to_keep]
+            self.W = self.W[to_keep,:,:,:]
+            self.model.encoder.shape_function.shape_params = nn.Parameter(self.model.encoder.shape_function.shape_params[:,to_keep])
+            self.rad_avg = self.rad_avg[to_keep,:,:]
+            self.type = self.type[to_keep]
+            self.model.encoder.J = np.sum(to_keep)
+            self.model.encoder.kernel_centers = nn.Parameter(self.model.encoder.kernel_centers[to_keep,:])
+            self.model.encoder.logA = nn.Parameter(self.model.encoder.logA[to_keep])
+            self.model.encoder.logB = nn.Parameter(self.model.encoder.logB[to_keep])
+            self.model.Lambda = nn.Parameter(self.model.Lambda[to_keep])
+            self.n_neurons = np.sum(to_keep)
+            self.kernel_centers = self.kernel_centers[to_keep,:]
+            if save:
+                torch.save(self.model, path + "model-mosaic_deleted.pt")
+                torch.save(self.cp, path + "checkpoint-mosaic_deleted.pt")
         #def make_mosaic_DoG_time(self, filename = 'mosaic_color', plot_size = False):
         #    matplotlib.use('agg')
         #    Videos_folder = '../Videos/' + save
@@ -363,6 +376,7 @@ class Analysis():
             alts = np.array(range(30,90,1))
             alt = 30
             Videos_folder = '../Videos/' + save
+            print(Videos_folder)
             matplotlib.use('agg')
             count = 0
             if not os.path.exists(Videos_folder):
@@ -382,8 +396,8 @@ class Analysis():
                 count = count + 1
                 plt.close()
                 
-        def get_images(self):
-            images = KyotoNaturalImages('kyoto_natim', self.kernel_size, True, 'cuda', self.n_colors)
+        def get_images(self, restriction = 'True'):
+            images = KyotoNaturalImages('kyoto_natim', self.kernel_size, True, 'cuda', self.n_colors, restriction)
             cov = images.covariance()
             self.images = images
             self.images_cov = cov
@@ -391,7 +405,7 @@ class Analysis():
         
             
         
-        def get_responses(self, batch = 128, n_cycles = 1000):
+        def get_responses(self, batch = 128, n_cycles = 100):
             images, cov = self.get_images()
             self.model.encoder.data_covariance = cov
             resp = []
@@ -413,6 +427,26 @@ class Analysis():
             self.resp = np.concatenate(resp, 0)
             self.cov_neurons = np.corrcoef(self.resp, rowvar = False)
             self.det = np.mean(dets)
+            
+        def compute_loss(self, batch = 128, n_cycles = 100, restriction = 'True', skip_read = False):
+            if not skip_read:
+                self.get_images(restriction) #BUG HERE restriction check will not always work. Can compute images with restriction then no restriction = don't recompute
+            self.model.encoder.data_covariance = self.images_cov
+            images = self.images
+            losses, MI, r = [], [], []
+            for this_cycle in range(n_cycles):
+                images_load = next(cycle(DataLoader(images, batch))).to('cuda')
+                images_sample = images_load.reshape([batch,self.n_colors,self.kernel_size**2])
+                model = self.model(images_sample, h_exp = 0, firing_restriction = 'Lagrange', corr_noise_sd = 0)
+                losses.append(model.calculate_metrics(self.epoch, 'Lagrange').final_loss('Lagrange').detach().cpu().item())
+                MI.append(model.calculate_metrics(self.epoch, 'Lagrange').final_loss('None').detach().cpu().item())
+                r.append(model.calculate_metrics(self.epoch, 'Lagrange').h.detach().cpu().mean().item())
+                #loss =+ analysis.model(images_sample, h_exp = 0, firing_restriction = 'Lagrange', corr_noise_sd = 0).calculate_metrics(analysis.epoch, 'Lagrange').final_loss('Lagrange') #This is the line where forward gets called
+                #MI_temp =+ analysis.model(images_sample, h_exp = 0, firing_restriction = 'Lagrange', corr_noise_sd = 0).calculate_metrics(analysis.epoch, 'Lagrange').final_loss('None') #This is the line where forward gets called
+                del model, images_load, images_sample
+            return losses,MI,r
+            
+            
         def get_cov_colors(self, batch = 100):
             images,cov = self.get_images()
             img_v1 = next(cycle(DataLoader(images, batch))).to('cuda')
@@ -514,7 +548,6 @@ class Analysis():
             self.df_pairs['same'] = self.df_pairs['type1'] == self.df_pairs['type2']
             
         def radial_averages(self, rad_range, high_res = True):
-
             all_y = np.around(self.RF_centers[:,0]).astype(int)
             all_x = np.around(self.RF_centers[:,1]).astype(int)
             rad_avg = np.zeros([self.n_neurons,rad_range,self.n_colors])
@@ -812,31 +845,36 @@ class Analysis():
               r_coefs.append(coef[1,0])  
              
             self.DoG_r = r_coefs
-            
+        
+        
         #Currently only works for 2 channels 
-        def change_d(self, cluster, d):
+        def change_d(self, cluster, d, save = True):
             params = self.model.encoder.shape_function.shape_params.detach()
             W = self.cp['weights'].detach()
+            rad_avg = self.rad_avg
             half_W = int(W.shape[0]/len(d))
+            
             for n in range(self.n_neurons):
                 if self.type[n] == cluster:
                     params[3,n] *= d[0]
                     params[7,n] *= d[1]
                     
+                    rad_avg[n,:,0] *= d[0]
+                    rad_avg[n,:,1] *= d[1]
+                    
                     W[:half_W,n] *= d[0]
                     W[half_W:,n] *= d[1]
                     
-                    #rad[n,:,0] *= -1
-            #    if test.type[n] == 3:
-            #        params[7,n] *= -1
                 
             params.requires_grad = True
             self.model.encoder.shape_function.shape_params = nn.Parameter(params)
             self.cp['model_state_dict']['encoder.shape_function.shape_params'] = nn.Parameter(params)
             self.cp['weights'] = nn.Parameter(W)
+            self.rad_avg = rad_avg
             
-            torch.save(self.model, path + "model-newD.pt")
-            torch.save(self.cp, path + "checkpoint-newD.pt")
+            if save:
+                torch.save(self.model, path + "model-newD.pt")
+                torch.save(self.cp, path + "checkpoint-newD.pt")
             
         
         def __call__(self, n_comps = None, rad_dist = None, n_clusters = None):
@@ -906,16 +944,15 @@ class Analysis_time():
         for n in range(self.n_analyses):
             self.analyses[n].type = n_type
             self.analyses[n].get_DoG_params()
-            self.analyses[n].mosaic_type(separate)
+            self.analyses[n].mosaics(separate)
             manager = plt.get_current_fig_manager()
             manager.full_screen_toggle()
             plt.savefig(Videos_folder + '/' + filename + '_' + str(n) + '.png')
             plt.close('all')
             if n%10 == 0:
                 print(n, ' center mosaic')
-            
         matplotlib.use('Qtagg')
-    def epoch_metrics(self, batch = 128, n_cycles = 100):
+    def epoch_metrics(self, batch = 128, n_cycles = 50):
         det_nums = []
         det_denums = []
         i = 0
@@ -925,6 +962,7 @@ class Analysis_time():
         d = np.empty([self.last.n_colors, self.last.n_neurons, 0])
         losses = []
         MI = []
+        r = []
         images, cov = self.last.get_images()
         for analysis in self.analyses:
             #num = analysis.model.encoder.C_z.detach().cpu().numpy()
@@ -932,17 +970,13 @@ class Analysis_time():
             #det_nums.append(np.linalg.det(num))
             #det_denums.append(np.linalg.det(denum))
             if n_cycles > 0:
-                for this_cycle in range(n_cycles):
-                    analysis.model.encoder.data_covariance = cov
-                    images_load = next(cycle(DataLoader(images, batch))).to('cuda')
-                    images_sample = images_load.reshape([batch,self.last.n_colors,self.last.kernel_size**2])
-                    loss =+ analysis.model(images_sample, h_exp = 0, firing_restriction = 'Lagrange', corr_noise_sd = 0).calculate_metrics(analysis.epoch, 'Lagrange').final_loss('Lagrange') #This is the line where forward gets called
-                    MI_temp =+ analysis.model(images_sample, h_exp = 0, firing_restriction = 'Lagrange', corr_noise_sd = 0).calculate_metrics(analysis.epoch, 'Lagrange').final_loss('None') #This is the line where forward gets called
-                loss = loss/n_cycles
-                MI_temp = MI_temp/n_cycles
-                losses.append(loss.detach().cpu().item())
-                MI.append(MI_temp.detach().cpu().item())
-                if i%10 == 0:
+                analysis.images_cov = cov
+                analysis.images = images
+                loss, MI_temp, r_temp = analysis.compute_loss(batch = batch, n_cycles = n_cycles, skip_read = True)
+                losses.append(np.mean(loss.detach().cpu().item()))
+                MI.append(np.mean(MI_temp.detach().cpu().item()))
+                r.append(np.sum(r_temp.detach().cpu().item()))
+                if i%1 == 0:
                     print(i)
             #all_a = self.analyses[i].model.encoder.shape_function.a.cpu().detach().numpy()
             a = np.append(a, np.expand_dims(self.analyses[i].model.encoder.shape_function.a.cpu().detach().numpy(), 2), axis = 2)
@@ -955,6 +989,7 @@ class Analysis_time():
         self.det_denums = det_denums
         self.MI = MI
         self.losses = losses
+        self.r = r
         
         self.a, self.b, self.c, self.d = a,b,c,d
     
@@ -1003,5 +1038,6 @@ class Analysis_time():
 test = Analysis(path)
 #test2 = Analysis(path2)
 test(n_comps_global, rad_dist_global, n_clusters_global)#, test2(2)
-test_all = Analysis_time(path, 1000, n_comps_global, rad_dist_global, n_clusters_global, start_epoch = 2000000, stop_epoch = 2030000)
+#test2(n_comps_global, rad_dist_global, 5)
+#test_all = Analysis_time(path, 1000, n_comps_global, rad_dist_global, n_clusters_global, start_epoch = 1998000, stop_epoch = 2020000)#, stop_epoch = 3000000)
 #test_all.epoch_metrics()

@@ -36,7 +36,7 @@ def set_seed(seed=None, seed_torch=True):
 
 
 def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S"),
-          iterations: int = 2_200_000,
+          iterations: int = 2_500_000,
           #iterations: int = 3,
           batch_size: int = 128,
           data: str = "imagenet",
@@ -62,7 +62,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           learning_rate: float = 0.001, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
           rho: float = 1,
           maxgradnorm: float = 20.0,
-          load_checkpoint: str = "240301-055438_test4", #"230705-141246",  # checkpoint file to resume training from
+          load_checkpoint: str = "240301-055438_test9", #"230705-141246",  # checkpoint file to resume training from
           fix_centers: bool = False,  # used if we want to fix the kernel_centers to learn params
           n_mosaics = 10,
           whiten_pca_ratio = None,

@@ -45,13 +45,12 @@ class KyotoNaturalImages(Dataset):
     either 500x640 or 640x500 size, from which a rectangular patch is randomly extracted.
     """
 
-    def __init__(self, root, kernel_size, circle_masking, device, n_colors):
+    def __init__(self, root, kernel_size, circle_masking, device, n_colors, restriction = 'True'):
         #root = 'kyoto_natim'
         #device = 'cuda'
         files = [mat for mat in os.listdir(root) if mat.endswith('.mat')]
         print("Loading {} images from {} ...".format(len(files), root))
         self.n_colors = n_colors
-        
         images = []
         for file in tqdm(files):
             if file.endswith('.mat'):
@@ -81,7 +80,7 @@ class KyotoNaturalImages(Dataset):
                 image = np.array(Image.open(os.path.join(root, file)).convert('L')).astype(np.float)
                 
             std = np.std(image)
-            if std < 1e-4:
+            if std < 1e-4: #This line never gets called 
                 continue
             image -= np.mean(image)
             image /= std
@@ -94,10 +93,9 @@ class KyotoNaturalImages(Dataset):
             images.append(torch.from_numpy(image).to(device))
             
         self.device = device
-
         self.images = images
         self.kernel_size = kernel_size
-
+        self.restriction = restriction
         if isinstance(kernel_size, int):
             self.mask = circular_mask(kernel_size) if circle_masking else torch.ones((kernel_size, kernel_size))
         else:
@@ -117,7 +115,9 @@ class KyotoNaturalImages(Dataset):
             x = np.random.randint(image.shape[-2] - dx)
             y = np.random.randint(image.shape[-1] - dy)
             result = image[..., x:x+dx, y:y+dy] * self.mask
-            return result.float()
+            condition = eval(self.restriction)       
+            if condition:
+                return result.float()
 
     def covariance(self, num_samples: int = 100000, device: Union[str, torch.device] = None, index=0):
         return estimated_covariance(self, num_samples, device, index)
