@@ -37,7 +37,7 @@ from model import RetinaVAE, OutputTerms, OutputMetrics
 
 #save = '240210-215844' #M and S channels
 
-save = '240301-055438_test2'
+save = '240301-055438'
 #save2 = '240301-055438_test8'
 
 path = "../../saves/" + save + "/" 
@@ -941,10 +941,12 @@ class Analysis_time():
         Videos_folder = '../Videos/' + save
         self.analyses[ref](self.n_comps, self.rad_dist, self.n_clusters)
         n_type = self.analyses[ref].type
-        for n in range(self.n_analyses):
-            self.analyses[n].type = n_type
-            self.analyses[n].get_DoG_params()
-            self.analyses[n].mosaics(separate)
+        n = 0
+        for analysis in self.analyses:
+            n += 1
+            analysis.type = n_type
+            analysis.get_DoG_params()
+            analysis.mosaics(separate)
             manager = plt.get_current_fig_manager()
             manager.full_screen_toggle()
             plt.savefig(Videos_folder + '/' + filename + '_' + str(n) + '.png')
@@ -1035,9 +1037,9 @@ class Analysis_time():
         
     
 
-test = Analysis(path)
+test = Analysis(path, 2000000)
 #test2 = Analysis(path2)
 test(n_comps_global, rad_dist_global, n_clusters_global)#, test2(2)
 #test2(n_comps_global, rad_dist_global, 5)
-#test_all = Analysis_time(path, 1000, n_comps_global, rad_dist_global, n_clusters_global, start_epoch = 1998000, stop_epoch = 2020000)#, stop_epoch = 3000000)
+#test_all = Analysis_time(path, 5000, n_comps_global, rad_dist_global, n_clusters_global)#, stop_epoch = 3000000)
 #test_all.epoch_metrics()
