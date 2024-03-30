@@ -1,0 +1,3 @@
+Try to change Beta so the softplus function is more linear 
+Reduce it close to 0. 
+Check: We have negative firing rates 

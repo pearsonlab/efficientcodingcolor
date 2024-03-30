@@ -1,0 +1,31 @@
+This theoretical paper builds a single framework that can explain receptive fields in both the early 
+visual and early auditory pathways. Their sparse principal component analysis (SPCA) model optimizes the reconstruction of the inputs from the output neurons, under both a firing rate constraint and a L2-penalty on the weights. Using this SPCA
+ model, they can replicate both Difference-of-Gaussians receptive fields in the retina and gammatone
+ filters in the early auditory system. They argue that these assumptions represent unifying principles across different sensory modalities. 
+
+I think there are many positives to note about the paper. Striving for unifying principles across sensory modalities is an important goal of theoretical neuroscience. The three assumptions they make are
+well-supported by previous litterature. It is interesting that they can reproduce DoG receptive fields using a sparse coding model, since sparse coding is usually used to explain V1 receptive fields. The model is also relatively simple, and can  reproduce multiple finding from the retina, such as parvo/magno pathways and color opponency. Overall, this work has potential to significantly advance the field. 
+
+The main limitation of this paper is the failure to provide sufficient evidence to show that their model can accurately predict gammatone filters. This is an important point to cover since the main contribution of this paper is that it can use one model to explain two precortical sensory modalities. While they provide ample evidence that their model explains DoG receptive fields, the authors provide very limited evidence that their model correctly predicts gammatone filters. The only results that support that claim are in Figure 7, which only shows two example learned filters from two different datasets estimated using reverse correlation. It would be helpful to know more details about these filters: 
+- For example, what were their frequency spectrum, and how does that align with findings from the cochlea? 
+- While the authors claim that these estimated filters are gammatone-like, it isn't clear to me that these aren't gabor filters. How good is the gabor fit to these filters, and how does it compare to the fit to a gammatone function? 
+- The authors do a good job at explaining what properties of natural images give rise to the DoG filters. What property of  natural sounds give rise to these gammatone filters? 
+
+In general, the authors should provide more evidence that their model reproduces findings from the cochlea, since this is the highlight of their model.
+
+Here are also some minor points that I think should be addressed:
+
+1. On line 154, the authors claim that the filters "correspond to the receptive fields of the ganglion cells
+154 that would result from reverse correlation". This is misleading, since reverse correlation gives a biased estimates of RFs with images that are spatially correlated. The authors need to either replace "reverse correlation" with GLM, or specify that this is what you would get using reverse correlation with white noise. 
+
+2. In figure 5, the authors show three types of chromatic
+RFs: red/green, blue/yellow and black/white. However, showing
+these chromatic RFs as color images can be misleading, since the images only consider the difference between two color channels. For example, yellow could be due to either strong L + M inputs, or a lack of S inputs. The authors should directly  show the filter weights without using chromatic images (for example, by showing the weight of each type as a function of radial distance). 
+
+3. While the authors can predict color opponency in the retina, their predictions about the proportion of each cell type in the retina is opposite to experimental findings: Most RGCs in the fovea are red/green opponent, and only a small fraction are achromatic (black/white). The authors should mention this as being as limitation of their model. 
+
+4. In figure 4, the authors show the relationship between amplitude of the filters at different spatial frequencies. Since this relationship seem to strongly depend on lambda, it would be interesting to see this relationship for more than 2 lambda values. 
+
+Also, since the authors managed to fit their model on videos to estimate temporal filters, it would be interesting to see the same plot for temporal frequencies. It would also be interesting to see how spatial and temporal frequencies interact with each other.
+
+If these points are addressed, I believe this work can make a significant contribution to the field of theoretical neuroscience. 
