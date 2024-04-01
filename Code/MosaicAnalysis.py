@@ -32,31 +32,31 @@ import scipy
 from model import RetinaVAE, OutputTerms, OutputMetrics
 #import cv2
 
-#save = '240125-183448' #3 channels classic, parametrized
-#save = '240225-003740' #1 channel classic, unparametrized
 
-#save = '240210-215844' #M and S channels
 
+#save = '240325-172722_test2'
 save = '240301-055438'
-#save2 = '240301-055438_test8'
-
+save = '240301-055438_imgtest2'
 path = "../../saves/" + save + "/" 
 #path2 = "../../saves/" + save2 + "/" 
 
-n_clusters_global = 4 #Best value for 240301-055438 is 4
+n_clusters_global = 6 #Best value for 240301-055438 is 4
 n_comps_global = 3 #Best value for 240301-055438 is 3
 rad_dist_global = 5 #Best value for 240301-055438 is 5
 class Analysis():
         def __init__(self, path, epoch = None):
             self.interval = 1000
             self.path = path
-            self.epoch = epoch
+
             if epoch == None:
                 last_cp_file = find_last_cp(path)
                 last_model_file = find_last_model(path)
+                epoch = int(last_model_file[6:-3])
             else:
                 last_cp_file = "checkpoint-" + str(epoch) + ".pt"
                 last_model_file = "model-" + str(epoch) + ".pt"
+                
+            self.epoch = epoch
             
             self.max_iteration = int(last_cp_file[11:-3])
             self.iterations = np.array(range(self.interval,self.max_iteration,self.interval))
@@ -848,7 +848,7 @@ class Analysis():
         
         
         #Currently only works for 2 channels 
-        def change_d(self, cluster, d, save = True):
+        def change_d(self, cluster, d, save = False):
             params = self.model.encoder.shape_function.shape_params.detach()
             W = self.cp['weights'].detach()
             rad_avg = self.rad_avg
@@ -873,8 +873,11 @@ class Analysis():
             self.rad_avg = rad_avg
             
             if save:
-                torch.save(self.model, path + "model-newD.pt")
-                torch.save(self.cp, path + "checkpoint-newD.pt")
+                new_folder = "../../saves/newD"
+                if not os.path.exists(new_folder):
+                    os.mkdir(new_folder)
+                torch.save(self.model, new_folder + "/model-" + str(self.epoch) + ".pt")
+                torch.save(self.cp, new_folder + "/checkpoint-" + str(self.epoch) + ".pt")
             
         
         def __call__(self, n_comps = None, rad_dist = None, n_clusters = None):
@@ -1037,7 +1040,7 @@ class Analysis_time():
         
     
 
-test = Analysis(path, 2000000)
+test = Analysis(path)
 #test2 = Analysis(path2)
 test(n_comps_global, rad_dist_global, n_clusters_global)#, test2(2)
 #test2(n_comps_global, rad_dist_global, 5)

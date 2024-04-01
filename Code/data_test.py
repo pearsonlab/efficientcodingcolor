@@ -93,6 +93,8 @@ class KyotoNaturalImages1(Dataset):
             image -= np.mean(image)
             image /= std
             
+            
+            
             #David: Idea of how to substract cone responses to uncorrelate them
             #M_S_tot = 0.38*(imageOM + imageOS)
             #image[0] = image[0] - M_S_tot
@@ -123,20 +125,15 @@ class KyotoNaturalImages1(Dataset):
             x = np.random.randint(image.shape[-2] - dx)
             y = np.random.randint(image.shape[-1] - dy)
             result = image[..., x:x+dx, y:y+dy] * self.mask
-            if torch.var(result) > 1:
-                #fig, ax = plt.subplots()
-                #ax.imshow(image[0], 'gray')
-                #print(result.shape)
-                if abs(torch.mean(result[0,:,:])) < abs(torch.mean(result[1,:,:])):
-                    color = 'r'
-                else:
-                    color = 'b'
-                #rect = patches.Rectangle((y,x), 18, 18, linewidth=1, edgecolor=color, facecolor='none')
-                #ax.add_patch(rect)
-                #print('mean:', torch.mean(result), 'var:', torch.var(result))
-            condition = eval(self.restriction)
+            condition = eval(self.restriction)  
             if condition:
-                return result.float()
+                fig, ax = plt.subplots()
+                ax.imshow(image[0], 'gray')
+                rect = patches.Rectangle((y,x), 18, 18, linewidth=2, edgecolor = 'r', facecolor='none')
+                ax.add_patch(rect)
+                print('mean:', torch.mean(result), 'var:', torch.var(result))
+            condition = eval(self.restriction)
+            return result.float()
 
     def covariance(self, num_samples: int = 100000, device: Union[str, torch.device] = None, index=0):
         return estimated_covariance(self, num_samples, device, index)
