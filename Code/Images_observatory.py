@@ -13,6 +13,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import random
+from util import flip_images
 
 save = '240301-055438_test8'
 path = "../../saves/" + save + "/" 
@@ -22,6 +23,7 @@ path = "../../saves/" + save + "/"
 img_full = KyotoNaturalImages('kyoto_natim', 18, False, 'cpu', 2)
 
 load = next(cycle(DataLoader(img_full, 100000))).to('cpu')
+load = flip_images(load,0.5, 'cpu')
 plt.figure()
 
 var_img = torch.var(load.flatten(1,3), axis = 1)
@@ -58,7 +60,7 @@ torch.sum(load**2) /(18*18*2*6200)
 condition = (mean_img_L < mean_img_S + 0.6).astype(int)
 plt.figure()
 plt.axes().set_aspect('equal')
-plt.scatter(mean_img_L, mean_img_S, c = condition)
+plt.scatter(mean_img_L, mean_img_S)
 plt.plot(np.linspace(-2,2,100), np.linspace(-2,2,100), 'black')
 plt.xlabel("Average L inputs (per 18x18 image)", fontsize = 30)
 plt.ylabel("Average S inputs (per 18x18 image)", fontsize = 30)

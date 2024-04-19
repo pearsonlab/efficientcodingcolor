@@ -66,6 +66,14 @@ def scale_0to1(W):
     W = (W - np.min(W))/(np.max(W) - np.min(W))
     return W
 
+def flip_images(batch, p, device):
+    batch_temp = torch.zeros(batch.shape, device = device)
+    flips = np.random.choice([0,1], batch.shape[0], p = [1-p, p])
+    for i in range(batch.shape[0]):
+        batch_temp[i,0,:,:] = batch[i,flips[i],:,:]
+        batch_temp[i,1,:,:] = batch[i,flips[i]^1,:,:]
+    return batch_temp
+
 def hexagonal_grid(n_neurons, kernel_size, n_mosaics):
     if n_neurons%n_mosaics != 0:
         raise ValueError("Number of neurons has to be a multiple of the number of mosaics!")

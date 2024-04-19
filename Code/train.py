@@ -16,8 +16,9 @@ from tqdm import trange
 
 from data import KyotoNaturalImages
 from model import RetinaVAE, OutputTerms, OutputMetrics
-from util import cycle, kernel_images
+from util import cycle, kernel_images, flip_images
 from analysis_utils import find_last_cp
+import random as rnd
 
 
 def set_seed(seed=None, seed_torch=True):
@@ -36,7 +37,7 @@ def set_seed(seed=None, seed_torch=True):
 
 
 def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S"),
-          iterations: int = 2_200_000,
+          iterations: int = 2_000_000,
           #iterations: int = 3,
           batch_size: int = 128,
           data: str = "imagenet",
@@ -59,10 +60,10 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           shape: Optional[str] = 'difference-of-gaussian', # "difference-of-gaussian" for Oneshape case #BUG: Can't use color 1 with "difference-of-gaussian"
           individual_shapes: bool = True,  # individual size of the RFs can be different for the Oneshape case
           optimizer: str = "sgd",  # can be "adam"
-          learning_rate: float = 0.001, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
+          learning_rate: float = 0.01, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
           rho: float = 1,
           maxgradnorm: float = 20.0,
-          load_checkpoint: str = "240301-055438_imgtest2", #"230705-141246",  # checkpoint file to resume training from
+          load_checkpoint: str = "240412-012753_flip2", #"230705-141246",  # checkpoint file to resume training from
           fix_centers: bool = False,  # used if we want to fix the kernel_centers to learn params
           n_mosaics = 10,
           whiten_pca_ratio = None,
@@ -72,7 +73,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           LR_reduce_epochs = [],
           LR_ratio = 1,
           corr_noise_sd = 0,
-          image_restriction = "torch.mean(result[0,:,:]) < torch.mean(result[1,:,:]) + 0.6"): #"Lagrange" or "Gamma" or "None" or "Two_losses"
+          image_restriction = "True", #Default is "True" 
+          flip_odds = 0.5): #Only works for 2 colors
 
     train_args = deepcopy(locals())  # keep all arguments as a dictionary
     for arg in sys.argv:
@@ -165,6 +167,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
                 model.encoder.jitter_kernels(jittering_power)
             
             batch = next(data_iterator).to(device)
+            if flip_odds > 0:
+                batch = flip_images(batch, flip_odds, device)
             
             torch.manual_seed(iteration)
             output: OutputTerms = model(batch, h_exp, firing_restriction, corr_noise_sd, record_C = record_C) #This is the line where forward gets called

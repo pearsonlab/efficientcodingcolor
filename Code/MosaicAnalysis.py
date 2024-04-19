@@ -34,13 +34,12 @@ from model import RetinaVAE, OutputTerms, OutputMetrics
 
 
 
-#save = '240325-172722_test2'
-save = '240301-055438'
-save = '240301-055438_imgtest2'
+#save2 = '240301-055438'
+save = '240412-012753_flip2'
 path = "../../saves/" + save + "/" 
 #path2 = "../../saves/" + save2 + "/" 
 
-n_clusters_global = 6 #Best value for 240301-055438 is 4
+n_clusters_global = 5 #Best value for 240301-055438 is 4
 n_comps_global = 3 #Best value for 240301-055438 is 3
 rad_dist_global = 5 #Best value for 240301-055438 is 5
 class Analysis():
@@ -428,7 +427,7 @@ class Analysis():
             self.cov_neurons = np.corrcoef(self.resp, rowvar = False)
             self.det = np.mean(dets)
             
-        def compute_loss(self, batch = 128, n_cycles = 100, restriction = 'True', skip_read = False):
+        def compute_loss(self, batch = 128, n_cycles = 1000, restriction = 'True', skip_read = False):
             if not skip_read:
                 self.get_images(restriction) #BUG HERE restriction check will not always work. Can compute images with restriction then no restriction = don't recompute
             self.model.encoder.data_covariance = self.images_cov
