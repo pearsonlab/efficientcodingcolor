@@ -46,7 +46,7 @@ class KyotoNaturalImages(Dataset):
     either 500x640 or 640x500 size, from which a rectangular patch is randomly extracted.
     """
 
-    def __init__(self, root, kernel_size, circle_masking, device, n_colors, restriction = 'True'):
+    def __init__(self, root, kernel_size, circle_masking, device, n_colors, restriction = 'True', remove_mean = False):
         #root = 'kyoto_natim'
         #device = 'cuda'
         files = [mat for mat in os.listdir(root) if mat.endswith('.mat')]
@@ -97,6 +97,7 @@ class KyotoNaturalImages(Dataset):
         self.images = images
         self.kernel_size = kernel_size
         self.restriction = restriction
+        self.remove_mean = remove_mean
         if isinstance(kernel_size, int):
             self.mask = circular_mask(kernel_size) if circle_masking else torch.ones((kernel_size, kernel_size))
         else:
@@ -118,6 +119,9 @@ class KyotoNaturalImages(Dataset):
             result = image[..., x:x+dx, y:y+dy] * self.mask
             condition = eval(self.restriction)       
             if condition:
+                if self.remove_mean:
+                    result = result - torch.mean(result)
+                    
                 return result.float()
 
     def covariance(self, num_samples: int = 100000, device: Union[str, torch.device] = None, index=0):

@@ -13,7 +13,7 @@ import torch
 from torch import nn
 import pandas as pd
 from numpy.linalg import norm
-from analysis_utils import find_last_cp, find_last_model, reshape_flat_W, round_kernel_centers, scale, get_matrix, make_rr
+from analysis_utils import find_last_cp, find_last_model, reshape_flat_W, round_kernel_centers, scale, get_matrix, make_rr, closest_divisor
 from data import KyotoNaturalImages
 from util import cycle, hexagonal_grid
 from torch.utils.data import DataLoader
@@ -30,23 +30,28 @@ from sklearn.mixture import GaussianMixture
 import scipy.optimize as opt
 import scipy
 from model import RetinaVAE, OutputTerms, OutputMetrics
+from bokeh.layouts import grid
+from bokeh.plotting import figure, output_file, show, ColumnDataSource
+from bokeh.models import HoverTool, WheelZoomTool
+from bokeh.models.glyphs import ImageURL
 #import cv2
 
 
 
-#save2 = '240301-055438'
-save = '240412-012753_flip2'
+#save = '240419-181037'
+save = '240421-001039'
 path = "../../saves/" + save + "/" 
 #path2 = "../../saves/" + save2 + "/" 
+epoch = None
 
-n_clusters_global = 5 #Best value for 240301-055438 is 4
+n_clusters_global = 10 #Best value for 240301-055438 is 4
 n_comps_global = 3 #Best value for 240301-055438 is 3
 rad_dist_global = 5 #Best value for 240301-055438 is 5
 class Analysis():
         def __init__(self, path, epoch = None):
             self.interval = 1000
             self.path = path
-
+            
             if epoch == None:
                 last_cp_file = find_last_cp(path)
                 last_model_file = find_last_model(path)
@@ -104,8 +109,10 @@ class Analysis():
                     ratio = OFF_sum/(ON_sum + OFF_sum)
                 center_surround_ratio.append(ratio)
             self.center_surround_ratio = center_surround_ratio
-            
-            
+            self.colors = ['black', 'blue', 'red', 'orange', 'green', 'purple', 'olive', 'cyan', 'teal', 'brown', 'pink', 'indigo']
+            self.Videos_folder = '../Videos/' + save + '/'
+            if not os.path.exists(self.Videos_folder):
+                os.mkdir(self.Videos_folder)
             #self.L2_color = norm(self.w,axis = (1,2))
            
 
@@ -186,7 +193,7 @@ class Analysis():
             best_bic = np.inf
             X = np.swapaxes(self.pca_transform,0,1)
             
-            gauss = GaussianMixture(n_components = n_clusters, n_init = 200).fit(X)
+            gauss = GaussianMixture(n_components = n_clusters, covariance_type = 'diag', n_init = 200).fit(X)
             bic = gauss.bic(X)
                 #if bic < best_bic:
                 #    best_bic = bic
@@ -205,11 +212,9 @@ class Analysis():
         def make_mosaic(self, mosaic_type = None, ax = None, plot_size = False, save_fig = False, color = 'white'):
             if save_fig:
                 matplotlib.use('agg')
-                Videos_folder = '../Videos/' + save 
-                mosaic_folder = Videos_folder + '/center_mosaic/'
+                mosaic_folder = self.Videos_folder + '/center_mosaic/'
                 
-                if not os.path.exists(Videos_folder):
-                    os.mkdir(Videos_folder)
+                
                 if not os.path.exists(mosaic_folder):
                     os.mkdir(mosaic_folder)
             
@@ -244,12 +249,13 @@ class Analysis():
                     
         def mosaics(self, separate = True, plot_size = False):
             n_types = max(self.type) + 1
-            colors =  ['black', 'blue', 'red', 'orange', 'green', 'purple', 'grey', 'cyan', 'teal']
+            colors =  self.colors
             if separate:
-                fig_len = math.ceil(np.sqrt(n_types))
+                n_row, n_col = closest_divisor(n_types)
             else:
-                fig_len =1
-            fig, axes = plt.subplots(fig_len, fig_len)
+                n_row =1
+                n_col = 1
+            fig, axes = plt.subplots(n_row, n_col)
             if separate:
                 axes = axes.flatten()
             for t in range(n_types):
@@ -262,6 +268,54 @@ class Analysis():
                 axes_remove = axes.shape[0] - n_types
                 for i in range(axes_remove):
                     axes[-(i+1)].set_axis_off()
+        
+        def mosaics_bokeh(self):
+            kernel_centers = self.kernel_centers
+            Videos_folder = 'file:///C:/Users/David/Documents/GitHub/efficientcodingcolor/Videos/'
+            folder = Videos_folder + save + '/rad_avgs/'
+            
+            pathways = np.unique(test.type)
+            all_neurons = np.arange(0, self.n_neurons)
+            figures = []
+            for path in pathways: 
+                neurons_select = self.type == path
+                neurons_num = all_neurons[neurons_select]
+
+                
+                source = ColumnDataSource(
+    			data=dict(
+    				x=kernel_centers[neurons_select,0],
+    				y=kernel_centers[neurons_select,1],
+    				imgs = [folder + 'rad_avg_' + str(i)+'.png' for i in neurons_num],
+                    desc = neurons_num))
+    
+                TOOLTIPS = """
+                            <div>
+                                <div>
+                                    <img
+                                        src="@imgs" height="200" alt="@imgs" width="200"
+                                        style="float: left; margin: 0px 30px 30px 0px;"
+                                        border="2"
+                                    ></img>
+                                </div>
+                                <div>
+                                    <span style="font-size: 17px; font-weight: bold;">@desc</span>
+                                </div>
+                                <div>
+                                    <span style="font-size: 15px;">Location</span>
+                                    <span style="font-size: 10px; color: #696;">($x, $y)</span>
+                                </div>
+                            </div>
+                        """
+                fig = figure(width=1000, height=1000,
+                    title="Mouse over the dots", tooltips = TOOLTIPS)
+                fig.scatter('x', 'y', size=8, color='blue', source=source)
+                figures.append(fig)
+            all_figs = grid([figures])
+            show(all_figs)
+
+
+                   
         
         def delete_mosaic(self, mosaic_num, save = False):
             to_keep = self.type != mosaic_num
@@ -280,20 +334,7 @@ class Analysis():
             if save:
                 torch.save(self.model, path + "model-mosaic_deleted.pt")
                 torch.save(self.cp, path + "checkpoint-mosaic_deleted.pt")
-        #def make_mosaic_DoG_time(self, filename = 'mosaic_color', plot_size = False):
-        #    matplotlib.use('agg')
-        #    Videos_folder = '../Videos/' + save
-        #    
-        #    if not os.path.exists(Videos_folder):
-        #        os.mkdir(Videos_folder)
-        #    for i in range(self.iterations.shape[0]):
-        #        if i%100 == 0:
-        #            print(i)
-        #        self.make_mosaic_DoG(i, 1, plot_size = plot_size)
-        #        plt.savefig(Videos_folder + '/' + filename + '_' + str(i) + '.png')
-        #        plt.close('all')
-        #    matplotlib.use('qtagg')
-        
+
         def make_kernels_image(self, weights, n_neurons = None, norm_each = True):
             if n_neurons == None:
                 n_neurons = self.n_neurons
@@ -343,7 +384,7 @@ class Analysis():
         def plot3D(self, params = None, angles = None, size = 22, title = None, color_type = True, labels = 'PCA', ellipse = False):
             if params is None:
                 params = self.pca_transform
-            colors = ['black', 'blue', 'red', 'orange', 'green', 'purple', 'grey', 'cyan', 'teal']
+            colors = self.colors
             if angles is not None:
                 elev, azim = angles
             else:
@@ -362,7 +403,11 @@ class Analysis():
                     color.append(colors[self.type[n]])
             else:
                 color = 'black'
-            ax.scatter(params[0,:], params[1,:], params[2,:], c = color)
+            
+            if self.n_comps >= 3:
+                ax.scatter(params[0,:], params[1,:], params[2,:], c = color)
+            else:
+                ax.scatter(params[0,:], params[1,:], np.ones(self.n_neurons), c = color)
             ax.set_title(title, size = 22)
             if ellipse:
                 self.draw_ellipse(sig_ell = 0.2, ax = ax)
@@ -374,15 +419,16 @@ class Analysis():
             azims = np.array(range(0,180,1))
             alts = np.array(range(30,90,1))
             alt = 30
-            Videos_folder = '../Videos/' + save
-            print(Videos_folder)
+            plot3D_folder = self.Videos_folder + '/plot3D/'
             matplotlib.use('agg')
             count = 0
-            if not os.path.exists(Videos_folder):
-                os.mkdir(Videos_folder)
+            if not os.path.exists(plot3D_folder):
+                os.mkdir(plot3D_folder)
+            
+            
             for azim in azims:
                 ax = self.plot3D(params, angles = (alt, azim), title = title, color_type = color_type, labels = labels, ellipse = ellipse)
-                plt.savefig('../Videos/' + save + '/' + filename + '_' + str(count) + '.png')
+                plt.savefig(plot3D_folder + filename + '_' + str(count) + '.png')
                 count = count + 1
                 plt.close()
                 if special_command is not None:
@@ -391,7 +437,7 @@ class Analysis():
                 ax = self.plot3D(params, angles = (alt, azim), title = title, color_type = color_type, labels = labels, ellipse = ellipse)
                 if special_command is not None:
                     exec(special_command)
-                plt.savefig('../Videos/' + save + '/' + filename + '_' + str(count) + '.png')
+                plt.savefig(plot3D_folder + filename + '_' + str(count) + '.png')
                 count = count + 1
                 plt.close()
                 
@@ -638,7 +684,6 @@ class Analysis():
                     #axis = return_subplot(axes, n, n_neurons)
                     #axis.plot(rad_avg[n,:,0], color = 'r')
                     #axis.plot(rad_avg[n,:,1], color = 'g')
-                    #axis.plot(rad_avg[n,:,2], color = 'b')
                     #axis.axhline(0, color = 'black')
                     axis.set_title("# " + str(n), fontsize = 6)
                     if n != 0:
@@ -664,6 +709,22 @@ class Analysis():
             if labels:
                 axis.set_xlabel("Distance from center", size = 50)
                 axis.set_ylabel("Weight", size = 50)
+            
+        
+        def make_rads_folder(self):
+            matplotlib.use("agg")
+            rads_folder = self.Videos_folder + '/rad_avgs/'
+            if not os.path.exists(rads_folder):
+                os.mkdir(rads_folder)
+            
+            for n in range(self.n_neurons):
+                self.plot_rad_avg(self.rad_avg[n,:,:])
+                plt.savefig(rads_folder + '/' + 'rad_avg_' + str(n) + '.png')
+                plt.close()
+            matplotlib.use("Qtagg")
+                
+                
+        
         
         #Plots one RF with its radial average 
         def plot_RF_rad(self,n):
@@ -872,20 +933,24 @@ class Analysis():
             self.rad_avg = rad_avg
             
             if save:
-                new_folder = "../../saves/newD"
+                new_folder = self.path + "newD/"
                 if not os.path.exists(new_folder):
                     os.mkdir(new_folder)
-                torch.save(self.model, new_folder + "/model-" + str(self.epoch) + ".pt")
-                torch.save(self.cp, new_folder + "/checkpoint-" + str(self.epoch) + ".pt")
+                torch.save(self.model, new_folder + "model-" + str(self.epoch) + ".pt")
+                torch.save(self.cp, new_folder + "checkpoint-" + str(self.epoch) + ".pt")
             
         
         def __call__(self, n_comps = None, rad_dist = None, n_clusters = None):
             if n_comps is None:
                 n_comps = n_comps_global
+                
             if rad_dist is None:
                 rad_dist = rad_dist_global
             if n_clusters is None:
                 n_clusters = n_clusters_global
+            
+            self.n_comps = n_comps
+            self.n_clusters = n_clusters
             plt.close('all')
             self.get_DoG_params()
             if self.parametrized:
@@ -937,10 +1002,12 @@ class Analysis_time():
         self.rad_dist = rad_dist
         self.n_clusters = n_clusters
         self.n_comps = n_comps
-        
+    
     def mosaic_type_video(self, filename, separate, ref = -1):
-        matplotlib.use('Qtagg')
-        Videos_folder = '../Videos/' + save
+        matplotlib.use('agg')
+        mosaics_folder = self.Videos_folder + '/mosaics/'
+        if not os.path.exists(mosaics_folder):
+            os.mkdir(mosaics_folder)
         self.analyses[ref](self.n_comps, self.rad_dist, self.n_clusters)
         n_type = self.analyses[ref].type
         n = 0
@@ -951,11 +1018,12 @@ class Analysis_time():
             analysis.mosaics(separate)
             manager = plt.get_current_fig_manager()
             manager.full_screen_toggle()
-            plt.savefig(Videos_folder + '/' + filename + '_' + str(n) + '.png')
+            plt.savefig(mosaics_folder + '/' + filename + '_' + str(n) + '.png')
             plt.close('all')
             if n%10 == 0:
                 print(n, ' center mosaic')
         matplotlib.use('Qtagg')
+        
     def epoch_metrics(self, batch = 128, n_cycles = 50):
         det_nums = []
         det_denums = []
@@ -1013,35 +1081,13 @@ class Analysis_time():
         fig.supxlabel("Epoch", size = 30)
             
                 
-    #eg: "center_mosaic.mp4" or "center_mosaic.avi"
-#def make_video(video_name):
-#    image_folder = '../Videos/' + save + '/' + video_name + '/'
-#    video_name = video_name + '.mp4'
-#    images = [img for img in os.listdir(image_folder) if img.endswith(".png")]
-#    print('hello')
-#    frame = cv2.imread(os.path.join(image_folder, images[0]))
-#    height, width, layers = frame.shape
-#    
-#    video = cv2.VideoWriter(video_name, 0, 1, (width,height))
-#    print('hello')
-#    a = True
-#    for image in images:
-#        #print(image)
-#        hello = cv2.imread(os.path.join(image_folder, image))
-#        if a:
-#            print('hey')
-#            a = False
-#        video.write(cv2.imread(os.path.join(image_folder, image)))
-#    
-#    cv2.destroyAllWindows()
-#    video.release()
             
         
     
 
-test = Analysis(path)
+test = Analysis(path, epoch)
 #test2 = Analysis(path2)
 test(n_comps_global, rad_dist_global, n_clusters_global)#, test2(2)
 #test2(n_comps_global, rad_dist_global, 5)
-#test_all = Analysis_time(path, 5000, n_comps_global, rad_dist_global, n_clusters_global)#, stop_epoch = 3000000)
+#test_all = Analysis_time(path, 100000, n_comps_global, rad_dist_global, n_clusters_global)#, stop_epoch = 3000000)
 #test_all.epoch_metrics()

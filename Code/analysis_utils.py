@@ -115,19 +115,22 @@ def make_rr(og_size, new_size, kernel_center = [0,0]):
     return rr 
    
 
-def closest_divisor(number):
-    min_add = np.inf
-    n_final = 0
-    m_final = 0
-    for n in range(1, number):
-        if number%n == 0:
-            m = number/n
-            if n + m < min_add:
-                min_add = n + m
-                n_final = n
-                m_final = int(m)
-    return n_final, m_final
+def closest_divisor(number, max_rows = 10, max_cols = 10):
+    empty_min = max_rows*max_cols
+    best_row = 0
+    best_col = 0
     
-                
+    for r in range(max_rows):
+        for c in range(max_cols):
+            tot = r*c
+            if tot >= number:
+                diff = tot - number
+                if diff <= empty_min:
+                    if diff < empty_min or r + c < best_row + best_col:                    
+                        empty_min = diff
+                        best_row = r
+                        best_col = c
+    return best_row, best_col
             
+    
     

@@ -21,7 +21,6 @@ class Shape(nn.Module):
             params_pre = np.tile(initial_parameters, n_colors)
             params = torch.tensor(params_pre).unsqueeze(-1).repeat(1, num_shapes)
             for p in range(params.shape[0]):
-                print(params.shape, "params.shape")
                 params[p, :] = torch.normal(mean=params[p,:], std = torch.tensor(0.1).repeat(num_shapes))      
         else:
             params = torch.tensor(initial_parameters)
