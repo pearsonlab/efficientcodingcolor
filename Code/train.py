@@ -41,7 +41,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           #iterations: int = 3,
           batch_size: int = 64,
           data: str = "imagenet",
-          kernel_size: int = 9,
+          kernel_size: int = 12,
           circle_masking: bool = True,
           dog_prior: bool = False,
           neurons: int = 600,  # number of neurons, J
@@ -63,11 +63,11 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           learning_rate: float = 0.01, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
           rho: float = 1,
           maxgradnorm: float = 20.0,
-          load_checkpoint: str = "240421-001039",  # checkpoint file to resume training from
+          load_checkpoint: str = None,  # checkpoint file to resume training from
           fix_centers: bool = False,  # used if we want to fix the kernel_centers to learn params
           n_mosaics = 10,
           whiten_pca_ratio = None,
-          device: str = 'cuda' if torch.cuda.is_available(   ) else 'cpu',
+          device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
           firing_restriction = "Lagrange",
           FR_learning_rate = 0.01,
           LR_reduce_epochs = [],
@@ -75,7 +75,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           corr_noise_sd = 0,
           image_restriction = "True", #Default is "True" 
           flip_odds = 0, #Only works for 2 colors, default is 0
-          norm_image = True): #Removes the mean from each small image vb  
+          norm_image = False): #Removes the mean from each small image vb  
 
     train_args = deepcopy(locals())  # keep all arguments as a dictionary
     for arg in sys.argv:
@@ -89,7 +89,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
     writer = SummaryWriter(log_dir=logdir)
     writer.add_text("train_args", json.dumps(train_args))
 
-    dataset = KyotoNaturalImages('kyoto_natim', kernel_size, circle_masking, device, n_colors, restriction = image_restriction)
+    dataset = KyotoNaturalImages('kyoto_natim', kernel_size, circle_masking, device, n_colors, restriction = image_restriction, remove_mean = norm_image)
     if whiten_pca_ratio is not None:
         dataset.pca_color()
         dataset.whiten_pca(whiten_pca_ratio)
@@ -168,6 +168,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
                 model.encoder.jitter_kernels(jittering_power)
             
             batch = next(data_iterator).to(device)
+            
+            #THERE IS A BIG BUG WITH FLIP_ODDS. THE FLIP DOESN'T HAPPEN ON THE COV MATIRX 
             if flip_odds > 0:
                 batch = flip_images(batch, flip_odds, device)
             

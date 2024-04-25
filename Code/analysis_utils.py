@@ -130,7 +130,11 @@ def closest_divisor(number, max_rows = 10, max_cols = 10):
                         empty_min = diff
                         best_row = r
                         best_col = c
-    return best_row, best_col
+                        
+    if best_col < best_row:
+        return best_row, best_col
+    else:
+        return best_col, best_row
             
     
     

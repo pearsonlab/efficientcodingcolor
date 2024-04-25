@@ -38,13 +38,13 @@ from bokeh.models.glyphs import ImageURL
 
 
 
-#save = '240419-181037'
+#save = '240301-055438'
 save = '240421-001039'
 path = "../../saves/" + save + "/" 
 #path2 = "../../saves/" + save2 + "/" 
 epoch = None
 
-n_clusters_global = 10 #Best value for 240301-055438 is 4
+n_clusters_global = 12 #Best value for 240301-055438 is 4
 n_comps_global = 3 #Best value for 240301-055438 is 3
 rad_dist_global = 5 #Best value for 240301-055438 is 5
 class Analysis():
@@ -99,6 +99,16 @@ class Analysis():
             self.w = reshape_flat_W(self.w_flat, self.n_neurons, self.kernel_size, self.n_colors)
             self.W = self.w
             
+            if 'flip_odds' in self.cp['args'].keys():
+                self.flip_odds = self.cp['args']['flip_odds']
+            else:
+                self.flip_odds = 0
+            
+            if 'image_restriction' in self.cp['args'].keys():
+                self.image_restriction = self.cp['args']['image_restriction']
+            else:
+                self.image_restriction = 'True'
+            
             center_surround_ratio = []
             for n in range(self.n_neurons):
                 ON_sum = np.sum(np.clip(self.W[n,:,:,:],0,np.inf))
@@ -109,7 +119,7 @@ class Analysis():
                     ratio = OFF_sum/(ON_sum + OFF_sum)
                 center_surround_ratio.append(ratio)
             self.center_surround_ratio = center_surround_ratio
-            self.colors = ['black', 'blue', 'red', 'orange', 'green', 'purple', 'olive', 'cyan', 'teal', 'brown', 'pink', 'indigo']
+            self.colors = ['black', 'blue', 'red', 'orange', 'green', 'purple', 'olive', 'cyan', 'teal', 'brown', 'pink', 'indigo', 'forestgreen', 'crimson', 'lightseagreen']
             self.Videos_folder = '../Videos/' + save + '/'
             if not os.path.exists(self.Videos_folder):
                 os.mkdir(self.Videos_folder)
@@ -269,9 +279,12 @@ class Analysis():
                 for i in range(axes_remove):
                     axes[-(i+1)].set_axis_off()
         
-        def mosaics_bokeh(self):
+        def mosaics_bokeh(self, github = False):
             kernel_centers = self.kernel_centers
-            Videos_folder = 'file:///C:/Users/David/Documents/GitHub/efficientcodingcolor/Videos/'
+            if github is False:
+                Videos_folder = 'file:///C:/Users/David/Documents/GitHub/efficientcodingcolor/Videos/'
+            else:
+                Videos_folder = 'https://raw.githubusercontent.com/pearsonlab/efficientcodingcolor/main/Meetings/Bokeh/'
             folder = Videos_folder + save + '/rad_avgs/'
             
             pathways = np.unique(test.type)
@@ -308,10 +321,15 @@ class Analysis():
                             </div>
                         """
                 fig = figure(width=1000, height=1000,
-                    title="Mouse over the dots", tooltips = TOOLTIPS)
-                fig.scatter('x', 'y', size=8, color='blue', source=source)
+                    title="Mosaic # " + str(path), tooltips = TOOLTIPS)
+                fig.scatter('x', 'y', size=15, color=self.colors[path], source=source)
                 figures.append(fig)
-            all_figs = grid([figures])
+            nrow, ncol = closest_divisor(pathways.shape[0])
+            n_slots = nrow*ncol
+            while len(figures) < n_slots:
+                figures.append[figure()]
+            figures = np.reshape(figures, [nrow, ncol]).tolist() #This is where the bug is 
+            all_figs = grid(figures)
             show(all_figs)
 
 
@@ -441,8 +459,8 @@ class Analysis():
                 count = count + 1
                 plt.close()
                 
-        def get_images(self, restriction = 'True'):
-            images = KyotoNaturalImages('kyoto_natim', self.kernel_size, True, 'cuda', self.n_colors, restriction)
+        def get_images(self):
+            images = KyotoNaturalImages('kyoto_natim', self.kernel_size, True, 'cuda', self.n_colors, self.image_restriction)
             cov = images.covariance()
             self.images = images
             self.images_cov = cov
@@ -485,10 +503,12 @@ class Analysis():
                 model = self.model(images_sample, h_exp = 0, firing_restriction = 'Lagrange', corr_noise_sd = 0)
                 losses.append(model.calculate_metrics(self.epoch, 'Lagrange').final_loss('Lagrange').detach().cpu().item())
                 MI.append(model.calculate_metrics(self.epoch, 'Lagrange').final_loss('None').detach().cpu().item())
+                #MI.append(0)
                 r.append(model.calculate_metrics(self.epoch, 'Lagrange').h.detach().cpu().mean().item())
                 #loss =+ analysis.model(images_sample, h_exp = 0, firing_restriction = 'Lagrange', corr_noise_sd = 0).calculate_metrics(analysis.epoch, 'Lagrange').final_loss('Lagrange') #This is the line where forward gets called
                 #MI_temp =+ analysis.model(images_sample, h_exp = 0, firing_restriction = 'Lagrange', corr_noise_sd = 0).calculate_metrics(analysis.epoch, 'Lagrange').final_loss('None') #This is the line where forward gets called
                 del model, images_load, images_sample
+            del images, self.images
             return losses,MI,r
             
             
@@ -1045,18 +1065,21 @@ class Analysis_time():
                 analysis.images_cov = cov
                 analysis.images = images
                 loss, MI_temp, r_temp = analysis.compute_loss(batch = batch, n_cycles = n_cycles, skip_read = True)
-                losses.append(np.mean(loss.detach().cpu().item()))
-                MI.append(np.mean(MI_temp.detach().cpu().item()))
-                r.append(np.sum(r_temp.detach().cpu().item()))
+                losses.append(np.mean(loss))
+                MI.append(np.mean(MI_temp))
+                r.append(np.sum(r_temp))
                 if i%1 == 0:
                     print(i)
+                
             #all_a = self.analyses[i].model.encoder.shape_function.a.cpu().detach().numpy()
-            a = np.append(a, np.expand_dims(self.analyses[i].model.encoder.shape_function.a.cpu().detach().numpy(), 2), axis = 2)
-            b = np.append(b, np.expand_dims(self.analyses[i].model.encoder.shape_function.b.cpu().detach().numpy(), 2), axis = 2)
-            c = np.append(c, np.expand_dims(self.analyses[i].model.encoder.shape_function.c.cpu().detach().numpy(), 2), axis = 2)
-            d = np.append(d, np.expand_dims(self.analyses[i].model.encoder.shape_function.d.cpu().detach().numpy(), 2), axis = 2)
+            a = np.append(a, np.expand_dims(analysis.model.encoder.shape_function.a.cpu().detach().numpy(), 2), axis = 2)
+            b = np.append(b, np.expand_dims(analysis.model.encoder.shape_function.b.cpu().detach().numpy(), 2), axis = 2)
+            c = np.append(c, np.expand_dims(analysis.model.encoder.shape_function.c.cpu().detach().numpy(), 2), axis = 2)
+            d = np.append(d, np.expand_dims(analysis.model.encoder.shape_function.d.cpu().detach().numpy(), 2), axis = 2)
+            #Memory taken increases with each loop. So I delete analysis after each loop to fix that issue. 
+            del self.analyses[i].model
             i += 1
-        
+            
         self.det_nums = det_nums
         self.det_denums = det_denums
         self.MI = MI
@@ -1089,5 +1112,5 @@ test = Analysis(path, epoch)
 #test2 = Analysis(path2)
 test(n_comps_global, rad_dist_global, n_clusters_global)#, test2(2)
 #test2(n_comps_global, rad_dist_global, 5)
-#test_all = Analysis_time(path, 100000, n_comps_global, rad_dist_global, n_clusters_global)#, stop_epoch = 3000000)
+#test_all = Analysis_time(path, 10000, n_comps_global, rad_dist_global, n_clusters_global)#, stop_epoch = 3000000)
 #test_all.epoch_metrics()
