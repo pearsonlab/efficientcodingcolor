@@ -256,7 +256,6 @@ class OutputTerms(object):
             target = eval(target)
         else:
             target = float(target)
-        
         if self.model.Lambda.shape[0] == 1:
             h = self.r.sub(target).mean()  # the equality constraint
         else:

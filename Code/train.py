@@ -37,11 +37,11 @@ def set_seed(seed=None, seed_torch=True):
 
 
 def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S"),
-          iterations: int = 2_000_000,
+          iterations: int = 2_200_000,
           #iterations: int = 3,
           batch_size: int = 64,
           data: str = "imagenet",
-          kernel_size: int = 12,
+          kernel_size: int = 18,
           circle_masking: bool = True,
           dog_prior: bool = False,
           neurons: int = 600,  # number of neurons, J
@@ -63,7 +63,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           learning_rate: float = 0.01, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
           rho: float = 1,
           maxgradnorm: float = 20.0,
-          load_checkpoint: str = None,  # checkpoint file to resume training from
+          load_checkpoint: str = '240426-122424/flip1',  # checkpoint file to resume training from
           fix_centers: bool = False,  # used if we want to fix the kernel_centers to learn params
           n_mosaics = 10,
           whiten_pca_ratio = None,
@@ -86,8 +86,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
     #set_seed(seed=SEED)
 
     print(f"Logging to {logdir}")
-    writer = SummaryWriter(log_dir=logdir)
-    writer.add_text("train_args", json.dumps(train_args))
+    
 
     dataset = KyotoNaturalImages('kyoto_natim', kernel_size, circle_masking, device, n_colors, restriction = image_restriction, remove_mean = norm_image)
     if whiten_pca_ratio is not None:
@@ -137,6 +136,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
         path = "../../saves/" + load_checkpoint + "/"
         last_cp = find_last_cp(path)
         checkpoint = torch.load(path + last_cp)
+        logdir = path
         if not isinstance(checkpoint, dict):
             raise RuntimeError("Pickled model no longer supported for loading")
         model.load_state_dict(checkpoint["model_state_dict"])
@@ -148,6 +148,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
     else:
         jittering_iterations = []
 
+    writer = SummaryWriter(log_dir=logdir)
+    writer.add_text("train_args", json.dumps(train_args))
     kernel_norm_penalty = 0
     h_exp = torch.ones([neurons], device = "cuda")
     patience = 0

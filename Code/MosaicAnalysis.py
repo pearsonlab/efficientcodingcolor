@@ -39,13 +39,16 @@ from bokeh.models.glyphs import ImageURL
 
 
 #save = '240301-055438'
-save = '240421-001039'
+#save = '240421-001039'
+#save = '240424-180823'
+save = '240426-122424'
+#save = '240426-122424/flip1'
 path = "../../saves/" + save + "/" 
 #path2 = "../../saves/" + save2 + "/" 
 epoch = None
 
-n_clusters_global = 12 #Best value for 240301-055438 is 4
-n_comps_global = 3 #Best value for 240301-055438 is 3
+n_clusters_global = 7 #Best value for 240301-055438 is 4
+n_comps_global = 2 #Best value for 240301-055438 is 3
 rad_dist_global = 5 #Best value for 240301-055438 is 5
 class Analysis():
         def __init__(self, path, epoch = None):
