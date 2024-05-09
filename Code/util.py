@@ -110,3 +110,14 @@ def hexagonal_grid(n_neurons, kernel_size, n_mosaics):
     kernel_centers = torch.tensor(kernel_centers, device = 'cuda') #Tensor
     kernel_centers = kernel_centers.tile(n_mosaics,1) #Tile for every mosaic
     return kernel_centers
+
+
+def check_d(model, nnum, n_colors, n_neurons):
+    for param in model.parameters():
+        if param.shape == torch.Size([n_colors*4,n_neurons]):
+            #print('Printing this epoch')
+            dL = param[3,nnum].item()
+            dS = param[7,nnum].item()
+            
+            print("d parameter: ", dL, dS)
+            

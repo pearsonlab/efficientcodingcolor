@@ -43,12 +43,13 @@ from bokeh.models.glyphs import ImageURL
 #save = '240424-180823'
 save = '240426-122424'
 #save = '240426-122424/flip1'
+#save = '240502-232623'
 path = "../../saves/" + save + "/" 
 #path2 = "../../saves/" + save2 + "/" 
 epoch = None
 
 n_clusters_global = 7 #Best value for 240301-055438 is 4
-n_comps_global = 2 #Best value for 240301-055438 is 3
+n_comps_global = 3 #Best value for 240301-055438 is 3
 rad_dist_global = 5 #Best value for 240301-055438 is 5
 class Analysis():
         def __init__(self, path, epoch = None):
@@ -470,7 +471,7 @@ class Analysis():
             return images, cov
         
             
-        
+        #This returns responses for every neuron
         def get_responses(self, batch = 128, n_cycles = 100):
             images, cov = self.get_images()
             self.model.encoder.data_covariance = cov
@@ -494,9 +495,10 @@ class Analysis():
             self.cov_neurons = np.corrcoef(self.resp, rowvar = False)
             self.det = np.mean(dets)
             
-        def compute_loss(self, batch = 128, n_cycles = 1000, restriction = 'True', skip_read = False):
+        #This returns loss by batch averaged across neurons. 
+        def compute_loss(self, batch = 128, n_cycles = 1000, skip_read = False):
             if not skip_read:
-                self.get_images(restriction) #BUG HERE restriction check will not always work. Can compute images with restriction then no restriction = don't recompute
+                self.get_images() #BUG HERE restriction check will not always work. Can compute images with restriction then no restriction = don't recompute
             self.model.encoder.data_covariance = self.images_cov
             images = self.images
             losses, MI, r = [], [], []
@@ -1115,5 +1117,5 @@ test = Analysis(path, epoch)
 #test2 = Analysis(path2)
 test(n_comps_global, rad_dist_global, n_clusters_global)#, test2(2)
 #test2(n_comps_global, rad_dist_global, 5)
-#test_all = Analysis_time(path, 10000, n_comps_global, rad_dist_global, n_clusters_global)#, stop_epoch = 3000000)
+#test_all = Analysis_time(path, 10000, n_comps_global, rad_dist_global, n_clusters_global, stop_epoch = 2000000)
 #test_all.epoch_metrics()

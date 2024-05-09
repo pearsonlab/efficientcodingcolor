@@ -37,8 +37,11 @@ class Shape(nn.Module):
         dy = kernel_y[None, :] - self.grid_y[:, None]
 
         W = self.shape_function(dx ** 2 + dy ** 2)
+        
+        #print('pre_norm:', W.norm(dim=0, keepdim=True)[0,121])
         if normalize:
             W = W / W.norm(dim=0, keepdim=True)
+            #print('post_norm:', W.norm(dim=0, keepdim=True)[0,119])
 
         return W #* kernel_polarities
 

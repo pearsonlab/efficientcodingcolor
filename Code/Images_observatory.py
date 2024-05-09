@@ -20,7 +20,7 @@ path = "../../saves/" + save + "/"
 #test = Analysis(path)
 #test.get_images()
 
-img_full = KyotoNaturalImages('kyoto_natim', 18,True, 'cpu', 2, 'True', True)
+img_full = KyotoNaturalImages('kyoto_natim', 18,True, 'cpu', 2, 'True', False)
 
 load = next(cycle(DataLoader(img_full, 100000))).to('cpu')
 #load = flip_images(load,0.5, 'cpu')

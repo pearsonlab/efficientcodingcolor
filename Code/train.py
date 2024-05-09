@@ -16,7 +16,7 @@ from tqdm import trange
 
 from data import KyotoNaturalImages
 from model import RetinaVAE, OutputTerms, OutputMetrics
-from util import cycle, kernel_images, flip_images
+from util import cycle, kernel_images, flip_images, check_d
 from analysis_utils import find_last_cp
 import random as rnd
 
@@ -63,7 +63,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           learning_rate: float = 0.01, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
           rho: float = 1,
           maxgradnorm: float = 20.0,
-          load_checkpoint: str = '240426-122424/flip1',  # checkpoint file to resume training from
+          load_checkpoint: str = "240426-122424",  # checkpoint file to resume training from
           fix_centers: bool = False,  # used if we want to fix the kernel_centers to learn params
           n_mosaics = 10,
           whiten_pca_ratio = None,
@@ -158,7 +158,18 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
     model.train()
     C_z_estimate = torch.zeros([neurons, neurons], device = 'cpu') #Crashes if saved on gpu
     C_zx_estimate = torch.zeros([neurons,neurons], device = 'cpu')
+    global gradS_all
+    global gradL_all
+    global h_all
+    global dL_all
+    global dS_all
+    gradL_all = []
+    gradS_all = []
+    h_all = []
+    dL_all = []
+    dS_all = []
     with trange(last_iteration + 1, iterations + 1, ncols=99) as loop:
+        
         for iteration in loop:
             
             if iteration % 1000 == 0 or iteration == 1:
@@ -176,6 +187,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
                 batch = flip_images(batch, flip_odds, device)
             
             torch.manual_seed(iteration)
+
             output: OutputTerms = model(batch, h_exp, firing_restriction, corr_noise_sd, record_C = record_C) #This is the line where forward gets called
             metrics: OutputMetrics = output.calculate_metrics(iteration, firing_restriction)
             h_current = metrics.return_h().detach()
@@ -215,10 +227,33 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
                 optimizer_FR.step()
                 optimizer_FR.zero_grad()
         
-            loss_MI.backward(retain_graph=True)
+            loss_MI.backward(retain_graph=True) 
             param_norm = torch.cat([param.data.flatten() for param in model.parameters()]).norm()
             grad_norm = torch.cat(
                 [param.grad.data.flatten() for param in model.parameters() if param.grad is not None]).norm()
+            for param in model.parameters():
+                if param.shape == torch.Size([8,600]):
+                    nnum = 109
+                    #print('Printing this epoch')
+                    dL = param[3,nnum].item()
+                    dS = param[7,nnum].item()
+                    print('Weights: ', param[3,nnum].item(), param[7,nnum].item())
+                    #print('Weights v2', model.encoder.shape_function.d[:,nnum])
+                    gradL = param.grad.data[3,nnum].item()
+                    gradS = param.grad.data[7,nnum].item()
+                    #print('Gradients: ',gradL, gradS)
+                    batch_means = np.mean(np.mean(batch.detach().cpu().numpy(), axis = 2), axis = 2)[0]
+                    #print('Batch means: ', batch_means, np.mean(batch_means), batch_means[0] - batch_means[1])
+                    #print(h_current[nnum] + 1)
+                    h_all.append(h_current[nnum].item() + 1)
+                    gradL_all.append(gradL)
+                    gradS_all.append(gradS)
+                    
+                    dL_all.append(dL)
+                    dS_all.append(dS)
+                    
+            
+                    
             if firing_restriction == "Lagrange":
                 model.Lambda.grad.neg_()
 
@@ -227,8 +262,12 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
             
             optimizer_MI.step()
             
+            check_d(model, 109, 2, 600)
             
             model.encoder.normalize()
+            
+            
+            
             
             loop.set_postfix(dict(
                 KL=metrics.KL.mean().item(),
@@ -257,8 +296,10 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
             if iteration % 1000 == 0 or iteration == 1:
                 W = model.encoder.W.detach().cpu().numpy()
                 for param in model.parameters():
+                    
                     if (np.array(param.shape) == [kernel_size*kernel_size*n_colors, neurons]).all():
                         W_grad = param.grad.detach().cpu().numpy()
+                        
                 writer.add_image('kernels', kernel_images(W, kernel_size, image_channels = model.encoder.image_channels), iteration)
                 if shape is None:
                     writer.add_image('W_grad', kernel_images(W_grad, kernel_size, image_channels = model.encoder.image_channels), iteration)

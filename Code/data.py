@@ -83,13 +83,23 @@ class KyotoNaturalImages(Dataset):
             std = np.std(image)
             if std < 1e-4: #This line never gets called 
                 continue
+            #L_mean = np.mean(image[0,:,:])
+            #L_std = np.std(image[0,:,:])
+            #S_mean = np.mean(image[1,:,:])
+            #S_std = np.std(image[1,:,:])
+            
+            #image[0,:,:] -= L_mean
+            #image[0,:,:] /= L_std
+            #image[1,:,:] -= S_mean
+            #image[1,:,:] /= S_std
+            
+            #print('start', np.mean(image), np.std(image), image.shape, np.mean(image[0,:,:]), np.mean(image[1,:,:]), np.std(image[0,:,:]), np.std(image[1,:,:]))
+            
+            #Uncomment these lines when you're done plz
             image -= np.mean(image)
             image /= std
             
-            #David: Idea of how to substract cone responses to uncorrelate them
-            #M_S_tot = 0.38*(imageOM + imageOS)
-            #image[0] = image[0] - M_S_tot
-            #image[1] = image[1] - M_S_tot
+            
             
             images.append(torch.from_numpy(image).to(device))
             
