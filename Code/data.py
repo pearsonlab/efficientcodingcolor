@@ -66,7 +66,8 @@ class KyotoNaturalImages(Dataset):
                 #imageOS = imageOS - 0.38*MS_tot
                 
                 pca_comps = get_matrix('pca_comps')
-
+                fake_channel = np.random.normal(loc = 0, scale = 0.01, size=imageOL.shape)
+                
                 if n_colors == 1:
                     image = imageOM
                 if n_colors == 2:

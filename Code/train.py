@@ -32,19 +32,18 @@ def set_seed(seed=None, seed_torch=True):
         torch.cuda.manual_seed(seed)
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
-
     print(f'Random seed {seed} has been set.')
 
 
 def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S"),
-          iterations: int = 2_200_000,
+          iterations: int = 1_000_000,
           #iterations: int = 3,
-          batch_size: int = 64,
+          batch_size: int = 128,
           data: str = "imagenet",
           kernel_size: int = 18,
           circle_masking: bool = True,
           dog_prior: bool = False,
-          neurons: int = 600,  # number of neurons, J
+          neurons: int = 300,  # number of neurons, J
           jittering_start: Optional[int] = 0, #originally 200000
           jittering_stop: Optional[int] = 0, #originally 500000
           jittering_interval: int = 5000,
@@ -63,7 +62,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           learning_rate: float = 0.01, #Consider having a high learning rate at first then lower it. Pytorch has packages for this 
           rho: float = 1,
           maxgradnorm: float = 20.0,
-          load_checkpoint: str = "240426-122424",  # checkpoint file to resume training from
+          load_checkpoint: str = "240514-084611",  # checkpoint file to resume training from
           fix_centers: bool = False,  # used if we want to fix the kernel_centers to learn params
           n_mosaics = 10,
           whiten_pca_ratio = None,
@@ -237,7 +236,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
                     #print('Printing this epoch')
                     dL = param[3,nnum].item()
                     dS = param[7,nnum].item()
-                    print('Weights: ', param[3,nnum].item(), param[7,nnum].item())
+                    #print('Weights: ', param[3,nnum].item(), param[7,nnum].item())
                     #print('Weights v2', model.encoder.shape_function.d[:,nnum])
                     gradL = param.grad.data[3,nnum].item()
                     gradS = param.grad.data[7,nnum].item()
@@ -262,7 +261,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
             
             optimizer_MI.step()
             
-            check_d(model, 109, 2, 600)
+            #check_d(model, 109, 2, 600)
             
             model.encoder.normalize()
             
@@ -319,8 +318,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
                 r = output.r.detach().cpu().numpy().mean(-1)  
                 writer.add_histogram("histogram/r", r, iteration, bins=100)
 
-                gain = model.encoder.logA.detach().exp().cpu().numpy()
-                writer.add_histogram("histogram/gain", gain, iteration, bins=100)
+                #gain = model.encoder.logA.detach().exp().cpu().numpy()
+                #writer.add_histogram("histogram/gain", gain, iteration, bins=100)
                 bias = model.encoder.logB.detach().exp().cpu().numpy()
                 writer.add_histogram("histogram/bias", bias, iteration, bins=100)
                 if hasattr(model.encoder, "shape_function"):
