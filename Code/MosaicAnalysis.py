@@ -38,12 +38,7 @@ from bokeh.models.glyphs import ImageURL
 
 
 
-#save = '240301-055438'
-#save = '240421-001039'
-#save = '240424-180823'
-save = '240426-122424'
-#save = '240426-122424/flip1'
-#save = '240502-232623'
+save = '240515-011042'
 path = "../../saves/" + save + "/" 
 #path2 = "../../saves/" + save2 + "/" 
 epoch = None
