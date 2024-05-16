@@ -1,0 +1,8 @@
+First comment:
+I left d in the normalization. Could try to take d outside of it and see if it does
+better. 
+
+Look at how the bias changes. It plays an important role in normalization. 
+
+Next experiment: Add gamma back in. See if removing the sigmoid on the d alone
+is enough to improve loss. 
