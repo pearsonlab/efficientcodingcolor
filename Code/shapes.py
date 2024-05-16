@@ -21,7 +21,6 @@ class Shape(nn.Module):
             params_pre = np.tile(initial_parameters, n_colors)
             params = torch.tensor(params_pre).unsqueeze(-1).repeat(1, num_shapes)
             for p in range(params.shape[0]):
-                print(params.shape, "params.shape")
                 params[p, :] = torch.normal(mean=params[p,:], std = torch.tensor(0.1).repeat(num_shapes))      
         else:
             params = torch.tensor(initial_parameters)
@@ -38,8 +37,11 @@ class Shape(nn.Module):
         dy = kernel_y[None, :] - self.grid_y[:, None]
 
         W = self.shape_function(dx ** 2 + dy ** 2)
+        
+        #print('pre_norm:', W.norm(dim=0, keepdim=True)[0,121])
         if normalize:
             W = W / W.norm(dim=0, keepdim=True)
+            #print('post_norm:', W.norm(dim=0, keepdim=True)[0,119])
 
         return W #* kernel_polarities
 

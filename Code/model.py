@@ -8,7 +8,7 @@ from torch import nn
 import numpy as np
 from shapes import get_shape_module, Shape
 import matplotlib.pyplot as plt
-from analysis_utils import closest_divisor
+from analysis_utils import closest_divisor, reshape_flat_W
 from util import hexagonal_grid
 import math
 
@@ -79,6 +79,8 @@ class Encoder(nn.Module):
         #    'firing': nn.ModuleList([self.logA, self.logB])})
 
     def kernel_variance(self):
+    
+        W = self.W
         W = self.W / self.W.norm(dim=0, keepdim=True)
         W = W.reshape(self.image_channels, self.kernel_size, self.kernel_size, self.J).mean(dim=0)
         Wx = W.pow(2).sum(dim=1)
@@ -95,8 +97,10 @@ class Encoder(nn.Module):
 
     def jitter_kernels(self, power=1.0):
         with torch.no_grad():
+            
             self.W.mul_(self.W.abs().pow(power))
             self.normalize()
+            
 
     def spatiotemporal(self, input: torch.Tensor):
         y = input @ self.W
@@ -152,7 +156,9 @@ class Encoder(nn.Module):
 
     def normalize(self):
         with torch.no_grad():
+            nnum = 119
             self.W /= self.W.norm(dim=0, keepdim=True)
+            
     
     def nx_matrix(self, B):
         x, y = np.meshgrid(np.array(range(self.kernel_size)), np.array(range(self.kernel_size)))
@@ -256,7 +262,6 @@ class OutputTerms(object):
             target = eval(target)
         else:
             target = float(target)
-        
         if self.model.Lambda.shape[0] == 1:
             h = self.r.sub(target).mean()  # the equality constraint
         else:
