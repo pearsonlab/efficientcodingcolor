@@ -1,0 +1,85 @@
+Anita: Are the inputs the cones or the natural images?
+Do not confuse the two. 
+Where the cones are is a huge restriction. 
+
+Prelim question: What is a n example experiment I could
+come up with for Greg
+
+How does this link to the biology?
+How does biology inspire the model and how does the
+model inspire biology?
+This seems like a concern for Anita since 
+90% of cones are L or M. 
+<
+
+*** Should include the answers to these questions in the document 
+
+The conceptual novelty of more inputs outputs (What is the 
+challenge) is not obvious in the prelim document. 
+
+Reread Baccus paper 
+
+Lindsey: What does proving a negative result entail?
+
+Push myself into having provable hypotheses 
+
+------------------------------------
+
+John: Baccus shows that all you need is feedforward
+to account for spikes.
+
+There are some linearities that a model like mine won't be
+able to explain.
+
+Do not use ''intelligent design'' language.
+What is the system suppposed to be doing? 
+Want to choose words carefully. 
+
+My hypothesis is that the existence of ON bistratified 
+can be explained by a combination of EC and skew in 
+natural images. 
+
+I will verify that the source is X Y Z, by 
+changing the statistics of natural images. 
+Species with different distribution of natural images statistics,
+ this answer will be different. 
+Why do monkeys and mice look different?
+Their eyes move different, 
+
+Should not say `The retina', there are plenty of retinas
+Retinas adapted to different statistics have different 
+properties. 
+
+Talk about different properties of DSGCs in different species
+, and we can test why that is. 
+
+*** What properties of my model, and what properties of 
+natural images create what effects in retina?
+
+We are trying to 
+1. See what we can replicate with EC only?
+2. If we're missing stuff, it means we're missing principles
+What bells and whistles should I add to. 
+
+In physics we spend millions to find small deviations to 
+particle physics.
+
+Significance
+1. What are the limits to EC?
+2. If there are missing principles what are they?
+Constraints because of how things get wired up?
+Biological functions to optimize?
+What experiments I can do in silico and in vivo and what
+I'm doing?
+
+
+John: My model is a model for encoding the world?
+What should the system do? We don't make assumptions 
+about cone mosaics. What should such a system for processing
+images do?
+
+The model should be more general than cone inputs for one
+species. We're asking for a normative principle. 
+The fact that this approach is wiring agnostic is a strength.
+But it can still make predictions about what things do. 
+

@@ -29,4 +29,8 @@ Line 181: They say that their RFs aren't ON center and
 OFF center. I am confused by this. 
 
 Line 221: They confused sparseness of connections
-and sparseness of firing rates.  
+and sparseness of firing rates. 
+
+
+Figure 5: Only looking at color RFs using RGB can be misleading. E.g. What looks like a blue center RF
+can be due to +S center or -L -M center. 
