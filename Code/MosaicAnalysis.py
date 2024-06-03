@@ -39,15 +39,18 @@ from bokeh.models.glyphs import ImageURL
 
 
 
-save = '240301-055438'
-save2 = '240513-002123'
+#save = '240301-055438'
+#save2 = '240513-002123'
+save2 = '240516-182956'
+#save = '230625-235533'
+save = '230705-141246'
 path = "../../saves/" + save + "/" 
 path2 = "../../saves/" + save2 + "/" 
 epoch = None
 
-n_clusters_global = 7 #Best value for 240301-055438 is 4
+n_clusters_global = 8 #Best value for 240301-055438 is 4
 n_comps_global = 3 #Best value for 240301-055438 is 3
-rad_dist_global = 8 #Best value for 240301-055438 is 5
+rad_dist_global = 5 #Best value for 240301-055438 is 5
 class Analysis():
         def __init__(self, path, epoch = None):
             self.interval = 1000
@@ -1075,7 +1078,7 @@ class Analysis_time():
                 print(n, ' center mosaic')
         matplotlib.use('Qtagg')
         
-    def epoch_metrics(self, batch = 128, n_cycles = 50):
+    def epoch_metrics(self, batch = 128, n_cycles = 0):
         det_nums = []
         det_denums = []
         i = 0
@@ -1083,6 +1086,8 @@ class Analysis_time():
         b = np.empty([self.last.n_colors, self.last.n_neurons, 0])
         c = np.empty([self.last.n_colors, self.last.n_neurons, 0])
         d = np.empty([self.last.n_colors, self.last.n_neurons, 0])
+        gain = np.empty([self.last.n_neurons, 0])
+            
         losses = []
         MI = []
         r = []
@@ -1101,13 +1106,20 @@ class Analysis_time():
                 r.append(np.sum(r_temp))
                 if i%1 == 0:
                     print(i)
-                
+            encoder = analysis.model.encoder
             #all_a = self.analyses[i].model.encoder.shape_function.a.cpu().detach().numpy()
-            a = np.append(a, np.expand_dims(analysis.model.encoder.shape_function.a.cpu().detach().numpy(), 2), axis = 2)
-            b = np.append(b, np.expand_dims(analysis.model.encoder.shape_function.b.cpu().detach().numpy(), 2), axis = 2)
-            c = np.append(c, np.expand_dims(analysis.model.encoder.shape_function.c.cpu().detach().numpy(), 2), axis = 2)
-            d = np.append(d, np.expand_dims(analysis.model.encoder.shape_function.d.cpu().detach().numpy(), 2), axis = 2)
+            a = np.append(a, np.expand_dims(encoder.shape_function.a.cpu().detach().numpy(), 2), axis = 2)
+            b = np.append(b, np.expand_dims(encoder.shape_function.b.cpu().detach().numpy(), 2), axis = 2)
+            c = np.append(c, np.expand_dims(encoder.shape_function.c.cpu().detach().numpy(), 2), axis = 2)
+            d = np.append(d, np.expand_dims(encoder.shape_function.d.cpu().detach().numpy(), 2), axis = 2)
+            
+            if hasattr(analysis.model.encoder, 'logA'):
+                gain = np.append(gain, np.expand_dims(encoder.logA.exp().cpu().detach().numpy(), 1), axis = 1)
+            else:
+                gain = 1
             #Memory taken increases with each loop. So I delete analysis after each loop to fix that issue. 
+            
+            
             del self.analyses[i].model
             i += 1
             
@@ -1118,6 +1130,7 @@ class Analysis_time():
         self.r = r
         
         self.a, self.b, self.c, self.d = a,b,c,d
+        self.gain = gain
     
     def plot_params_time(self, n):
         n_colors = self.last.n_colors
@@ -1144,4 +1157,5 @@ test2 = Analysis(path2, epoch)
 test(n_comps_global, rad_dist_global, n_clusters_global)#, test2(2)
 test2(n_comps_global, rad_dist_global, n_clusters_global)
 #test_all = Analysis_time(path, 10000, n_comps_global, rad_dist_global, n_clusters_global, stop_epoch = 2000000)
+#test_all2 = Analysis_time(path2, 10000, n_comps_global, rad_dist_global, n_clusters_global, stop_epoch = 2000000)
 #test_all.epoch_metrics()
