@@ -181,7 +181,7 @@ class Encoder(nn.Module):
         
         if self.shape is not None:
             self.W = self.shape_function(self.kernel_centers, self.kernel_polarities)
-        gain = self.logA.exp()  # shape = [J]
+        gain = 1 #Edit June 3rd, 2024. self.logA.exp()  # shape = [J]
         bias = self.logB.exp()
         
         if corr_noise_sd == 0 or corr_noise_sd == None:

@@ -70,7 +70,8 @@ class DifferenceOfGaussianShape(Shape):
         a = a_pre # make the center smaller than the surround
         b = 1/(1/a + 1/b)
         c = logitC.sigmoid()  #to keep it within (0, 1)
-        d = d.sigmoid() - 0.5
+        #d = d.sigmoid() - 0.5 #Edit June 3rd, 2024.
+        
         #d = d/torch.sqrt(torch.sum(d**2, 0))
         self.a, self.b, self.c, self.d = a.detach(), b.detach(), c.detach(), d.detach()
         
