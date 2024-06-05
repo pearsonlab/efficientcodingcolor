@@ -69,7 +69,7 @@ class Encoder(nn.Module):
             W = 0.02 * torch.randn(self.image_channels*self.D, self.J)
             self.W = nn.Parameter(W / W.norm(dim=0, keepdim=True))  # spatial kernel, [D, J]
         
-        #self.logA = nn.Parameter(0.02 * torch.randn(self.J))  # gain of the nonlinearity
+        self.logA = nn.Parameter(0.02 * torch.randn(self.J))  # gain of the nonlinearity
         self.logB = nn.Parameter(0.02 * torch.randn(self.J) - 1)  # bias of the nonlinearity
         #  self.nx_cov = self.correlated_input_noise()
         self.test_counter = 0
@@ -180,8 +180,7 @@ class Encoder(nn.Module):
         
         if self.shape is not None:
             self.W = self.shape_function(self.kernel_centers, self.kernel_polarities)
-        #gain = self.logA.exp()  # shape = [J]
-        
+        gain = self.logA.exp()  # shape = [J]
         bias = self.logB.exp()
         
         if corr_noise_sd == 0 or corr_noise_sd == None:
@@ -198,23 +197,23 @@ class Encoder(nn.Module):
 
         y = self.spatiotemporal(image_nx)
         nr = self.output_noise * torch.randn_like(y)
-        z = (y - bias) + nr  # z.shape = [B, T, J] #There is a gain here
+        z = gain * (y - bias) + nr  # z.shape = [B, T, J] #There is a gain here
 
         
         if self.nonlinearity == "relu":
-            r = (y - bias).relu() #Removed gain here
+            r = gain * (y - bias).relu() #Removed gain here
             
             grad = ((y - bias) > 0).float()  # shape = [B, T, J]
         else:  # softplus nonlinearity
-            r = F.softplus(y - bias, beta=2.5)
+            r = gain * F.softplus(y - bias, beta=2.5)
             grad = torch.sigmoid(2.5 * (y-bias))
-        #gain = gain*grad
+        gain = gain*grad
         C_nx = self.input_noise ** 2 * torch.eye(L * D, device=image.device)
-        C_zx = self.matrix_spatiotemporal(C_nx, grad, record_C = False)  # shape = [1 or B, J, J] or [1 or B, TJ, TJ]
+        C_zx = self.matrix_spatiotemporal(C_nx, gain, record_C = False)  # shape = [1 or B, J, J] or [1 or B, TJ, TJ]
         assert C_zx.shape[1] == C_zx.shape[2]
         C_nr = self.output_noise ** 2 * torch.eye(C_zx.shape[-1], device=image.device)
         C_zx += C_nr
-        C_z = self.matrix_spatiotemporal(self.data_covariance + C_nx, grad, cov = True, record_C = True)
+        C_z = self.matrix_spatiotemporal(self.data_covariance + C_nx, gain, cov = True, record_C = True)
         C_z += C_nr
         
     

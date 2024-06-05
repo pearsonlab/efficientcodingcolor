@@ -39,11 +39,11 @@ from bokeh.models.glyphs import ImageURL
 
 
 
-#save = '240301-055438'
-#save2 = '240513-002123'
-save2 = '240516-182956'
+save = '240301-055438'
+save2 = '240513-002123'
+#save2 = '240516-182956'
 #save = '230625-235533'
-save = '230705-141246'
+#save = '230705-141246'
 path = "../../saves/" + save + "/" 
 path2 = "../../saves/" + save2 + "/" 
 epoch = None
@@ -129,7 +129,7 @@ class Analysis():
                 os.mkdir(self.Videos_folder)
             #self.L2_color = norm(self.w,axis = (1,2))
            
-
+            
             
             lms_to_rgb = get_matrix(matrix_type = 'lms_to_rgb')
             self.lms_to_rgb = lms_to_rgb
@@ -670,6 +670,7 @@ class Analysis():
                         rad_avg[n,r,:] = 0
             self.rad_avg = rad_avg
         
+        #rad_res = how many pixels, rad_range = resolution (e.g. 0.01)
         def rad_avg_fun(self, rad_res, rad_range):
             subpixels = np.arange(0,rad_range, rad_res)
             rad_avg = np.zeros([self.n_neurons,subpixels.shape[0],self.n_colors])
@@ -683,7 +684,7 @@ class Analysis():
                     rad_avg[n, r, :] = d*(np.exp(-a * subp**2) - c*np.exp(-b * subp**2))
                     r += 1
                 rad_avg[n,:,:] /= np.std(rad_avg[n,:,:])*10
-            self.rad_avg_sub = rad_avg
+            self.rad_avg = rad_avg
             
         
         def zero_crossings_obs(self):
