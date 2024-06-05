@@ -1,3 +1,0 @@
-- Check if what is true for the center is also true for the surround - do the radial average as you move away from center
-- Analyze the 200 RGCs - try to see if there's new mosaics
-- Make the parametrization work

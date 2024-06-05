@@ -38,19 +38,24 @@ from bokeh.models.glyphs import ImageURL
 
 
 
-save = '240515-011042'
+
+save = '240301-055438'
+save2 = '240513-002123'
+#save2 = '240516-182956'
+#save = '230625-235533'
+#save = '230705-141246'
 path = "../../saves/" + save + "/" 
-#path2 = "../../saves/" + save2 + "/" 
+path2 = "../../saves/" + save2 + "/" 
 epoch = None
 
-n_clusters_global = 7 #Best value for 240301-055438 is 4
+n_clusters_global = 8 #Best value for 240301-055438 is 4
 n_comps_global = 3 #Best value for 240301-055438 is 3
 rad_dist_global = 5 #Best value for 240301-055438 is 5
 class Analysis():
         def __init__(self, path, epoch = None):
             self.interval = 1000
             self.path = path
-            
+            self.save = path[-14:-1]
             if epoch == None:
                 last_cp_file = find_last_cp(path)
                 last_model_file = find_last_model(path)
@@ -119,12 +124,12 @@ class Analysis():
                 center_surround_ratio.append(ratio)
             self.center_surround_ratio = center_surround_ratio
             self.colors = ['black', 'blue', 'red', 'orange', 'green', 'purple', 'olive', 'cyan', 'teal', 'brown', 'pink', 'indigo', 'forestgreen', 'crimson', 'lightseagreen']
-            self.Videos_folder = '../Videos/' + save + '/'
+            self.Videos_folder = '../Videos/' + self.save + '/'
             if not os.path.exists(self.Videos_folder):
                 os.mkdir(self.Videos_folder)
             #self.L2_color = norm(self.w,axis = (1,2))
            
-
+            
             
             lms_to_rgb = get_matrix(matrix_type = 'lms_to_rgb')
             self.lms_to_rgb = lms_to_rgb
@@ -284,7 +289,7 @@ class Analysis():
                 Videos_folder = 'file:///C:/Users/David/Documents/GitHub/efficientcodingcolor/Videos/'
             else:
                 Videos_folder = 'https://raw.githubusercontent.com/pearsonlab/efficientcodingcolor/main/Meetings/Bokeh/'
-            folder = Videos_folder + save + '/rad_avgs/'
+            folder = Videos_folder + self.save + '/rad_avgs/'
             
             pathways = np.unique(test.type)
             all_neurons = np.arange(0, self.n_neurons)
@@ -292,14 +297,21 @@ class Analysis():
             for path in pathways: 
                 neurons_select = self.type == path
                 neurons_num = all_neurons[neurons_select]
-
+                all_dL = self.d[0,neurons_select]
+                all_dS = self.d[1,neurons_select]
+                all_aL = self.a[0, neurons_select]
+                all_aS = self.a[1, neurons_select]
                 
                 source = ColumnDataSource(
     			data=dict(
     				x=kernel_centers[neurons_select,0],
     				y=kernel_centers[neurons_select,1],
     				imgs = [folder + 'rad_avg_' + str(i)+'.png' for i in neurons_num],
-                    desc = neurons_num))
+                    desc = neurons_num,
+                    dL = all_dL,
+                    dS = all_dS,
+                    aL = all_aL,
+                    aS = all_aS))
     
                 TOOLTIPS = """
                             <div>
@@ -312,6 +324,12 @@ class Analysis():
                                 </div>
                                 <div>
                                     <span style="font-size: 17px; font-weight: bold;">@desc</span>
+                                </div>
+                                    <span style="font-size: 17px; font-weight: bold;">@dL</span>
+                                    <span style="font-size: 17px; font-weight: bold;">@dS</span>
+                                <div>
+                                <span style="font-size: 17px; font-weight: bold;">@aL</span>
+                                <span style="font-size: 17px; font-weight: bold;">@aS</span>
                                 </div>
                                 <div>
                                     <span style="font-size: 15px;">Location</span>
@@ -611,7 +629,7 @@ class Analysis():
             df_list = {'neuron1': neuron1_df, 'neuron2':neuron2_df, 'type1':neuron1_type, 'type2':neuron2_type, 'dist':dist_df, 'corr':corr_df}
             self.df_pairs = pd.DataFrame(data = df_list)
             self.df_pairs['same'] = self.df_pairs['type1'] == self.df_pairs['type2']
-            
+        
         def radial_averages(self, rad_range, high_res = True):
             all_y = np.around(self.RF_centers[:,0]).astype(int)
             all_x = np.around(self.RF_centers[:,1]).astype(int)
@@ -651,7 +669,24 @@ class Analysis():
                     else:
                         rad_avg[n,r,:] = 0
             self.rad_avg = rad_avg
+        
+        #rad_res = how many pixels, rad_range = resolution (e.g. 0.01)
+        def rad_avg_fun(self, rad_res, rad_range):
+            subpixels = np.arange(0,rad_range, rad_res)
+            rad_avg = np.zeros([self.n_neurons,subpixels.shape[0],self.n_colors])
+            for n in range(self.n_neurons):
+                a = self.a[:,n]
+                b = self.b[:,n]
+                c = self.c[:,n]
+                d = self.d[:,n]
+                r = 0
+                for subp in subpixels:
+                    rad_avg[n, r, :] = d*(np.exp(-a * subp**2) - c*np.exp(-b * subp**2))
+                    r += 1
+                rad_avg[n,:,:] /= np.std(rad_avg[n,:,:])*10
+            self.rad_avg = rad_avg
             
+        
         def zero_crossings_obs(self):
             zero_cross = np.zeros(self.n_neurons)
             for n in range(self.n_neurons):
@@ -674,14 +709,14 @@ class Analysis():
                 else:
                     zero_cross[n] = self.rad_avg.shape[1] + 2
             self.zero_cross = zero_cross
-                
-                
-                    
-                    
-                
-        def plot_rads(self, type_num = None, title = "", hspace = 0.5):
+        
+            
+        def plot_rads(self, type_num = None, title = "", hspace = 0.5, rad_type = 'original'):
             if type_num is not None:
-                rad_avg = self.rad_avg[np.where(self.type == type_num)[0],:]
+                if rad_type == 'original':
+                    rad_avg = self.rad_avg[np.where(self.type == type_num)[0],:]
+                elif rad_type == 'new':
+                    rad_avg = self.rad_avg_sub[np.where(self.type == type_num)[0],:]
             else:
                 rad_avg = self.rad_avg
             n_neurons = rad_avg.shape[0]
@@ -755,7 +790,7 @@ class Analysis():
             
             
         
-        def pca_radial_average(self, n_comp, plot = True):
+        def pca_rads(self, n_comp, plot = True):
             colors = ['black', 'blue', 'orange', 'red', 'yellow']
             if not hasattr(self, 'rad_avg'):
                 self.radial_averages()
@@ -890,7 +925,7 @@ class Analysis():
             axes[0].set_title("Unparametrized RF", size = 30)
             axes[1].imshow(scale(self.RFs_fit[n,:,:,:]))
             axes[1].set_title("DoG fit", size = 30)
-            plt.suptitle("cor = " + str(round(self.DoG_r[n],4)) + ", " + save + " #" + str(n), size = 30)
+            plt.suptitle("cor = " + str(round(self.DoG_r[n],4)) + ", " + self.save + " #" + str(n), size = 30)
         
         def DoG_fit_func(self, shape, centers):
             def W_from_shapes(params):
@@ -975,13 +1010,13 @@ class Analysis():
             self.get_DoG_params()
             if self.parametrized:
                 self.radial_averages(rad_dist)
-                self.pca_radial_average(n_comp = n_comps, plot = False)
+                self.pca_rads(n_comp = n_comps, plot = False)
                 self.get_pathways(n_clusters)
             else:
                 self.fit_DoG()
                 #self.fit_DoG_scipy()
                 self.radial_averages(rad_dist)
-                self.pca_radial_average(n_comp = n_comps, plot = False)
+                self.pca_rads(n_comp = n_comps, plot = False)
                 #self.make_RF_from_pca()
                 self.get_pathways(n_clusters)
                 self.zero_crossings()
@@ -1044,7 +1079,7 @@ class Analysis_time():
                 print(n, ' center mosaic')
         matplotlib.use('Qtagg')
         
-    def epoch_metrics(self, batch = 128, n_cycles = 50):
+    def epoch_metrics(self, batch = 128, n_cycles = 0):
         det_nums = []
         det_denums = []
         i = 0
@@ -1052,6 +1087,8 @@ class Analysis_time():
         b = np.empty([self.last.n_colors, self.last.n_neurons, 0])
         c = np.empty([self.last.n_colors, self.last.n_neurons, 0])
         d = np.empty([self.last.n_colors, self.last.n_neurons, 0])
+        gain = np.empty([self.last.n_neurons, 0])
+            
         losses = []
         MI = []
         r = []
@@ -1070,13 +1107,20 @@ class Analysis_time():
                 r.append(np.sum(r_temp))
                 if i%1 == 0:
                     print(i)
-                
+            encoder = analysis.model.encoder
             #all_a = self.analyses[i].model.encoder.shape_function.a.cpu().detach().numpy()
-            a = np.append(a, np.expand_dims(analysis.model.encoder.shape_function.a.cpu().detach().numpy(), 2), axis = 2)
-            b = np.append(b, np.expand_dims(analysis.model.encoder.shape_function.b.cpu().detach().numpy(), 2), axis = 2)
-            c = np.append(c, np.expand_dims(analysis.model.encoder.shape_function.c.cpu().detach().numpy(), 2), axis = 2)
-            d = np.append(d, np.expand_dims(analysis.model.encoder.shape_function.d.cpu().detach().numpy(), 2), axis = 2)
+            a = np.append(a, np.expand_dims(encoder.shape_function.a.cpu().detach().numpy(), 2), axis = 2)
+            b = np.append(b, np.expand_dims(encoder.shape_function.b.cpu().detach().numpy(), 2), axis = 2)
+            c = np.append(c, np.expand_dims(encoder.shape_function.c.cpu().detach().numpy(), 2), axis = 2)
+            d = np.append(d, np.expand_dims(encoder.shape_function.d.cpu().detach().numpy(), 2), axis = 2)
+            
+            if hasattr(analysis.model.encoder, 'logA'):
+                gain = np.append(gain, np.expand_dims(encoder.logA.exp().cpu().detach().numpy(), 1), axis = 1)
+            else:
+                gain = 1
             #Memory taken increases with each loop. So I delete analysis after each loop to fix that issue. 
+            
+            
             del self.analyses[i].model
             i += 1
             
@@ -1087,6 +1131,7 @@ class Analysis_time():
         self.r = r
         
         self.a, self.b, self.c, self.d = a,b,c,d
+        self.gain = gain
     
     def plot_params_time(self, n):
         n_colors = self.last.n_colors
@@ -1109,8 +1154,9 @@ class Analysis_time():
     
 
 test = Analysis(path, epoch)
-#test2 = Analysis(path2)
+test2 = Analysis(path2, epoch)
 test(n_comps_global, rad_dist_global, n_clusters_global)#, test2(2)
-#test2(n_comps_global, rad_dist_global, 5)
+test2(n_comps_global, rad_dist_global, n_clusters_global)
 #test_all = Analysis_time(path, 10000, n_comps_global, rad_dist_global, n_clusters_global, stop_epoch = 2000000)
+#test_all2 = Analysis_time(path2, 10000, n_comps_global, rad_dist_global, n_clusters_global, stop_epoch = 2000000)
 #test_all.epoch_metrics()

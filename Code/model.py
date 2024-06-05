@@ -156,7 +156,6 @@ class Encoder(nn.Module):
 
     def normalize(self):
         with torch.no_grad():
-            nnum = 119
             self.W /= self.W.norm(dim=0, keepdim=True)
             
     
@@ -198,17 +197,17 @@ class Encoder(nn.Module):
 
         y = self.spatiotemporal(image_nx)
         nr = self.output_noise * torch.randn_like(y)
-        z = gain * (y - bias) + nr  # z.shape = [B, T, J]
+        z = gain * (y - bias) + nr  # z.shape = [B, T, J] #There is a gain here
 
         
         if self.nonlinearity == "relu":
-            r = gain * (y - bias).relu()
+            r = gain * (y - bias).relu() #Removed gain here
             
             grad = ((y - bias) > 0).float()  # shape = [B, T, J]
         else:  # softplus nonlinearity
             r = gain * F.softplus(y - bias, beta=2.5)
             grad = torch.sigmoid(2.5 * (y-bias))
-        gain = gain * grad
+        gain = gain*grad
         C_nx = self.input_noise ** 2 * torch.eye(L * D, device=image.device)
         C_zx = self.matrix_spatiotemporal(C_nx, gain, record_C = False)  # shape = [1 or B, J, J] or [1 or B, TJ, TJ]
         assert C_zx.shape[1] == C_zx.shape[2]

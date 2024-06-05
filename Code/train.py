@@ -32,7 +32,6 @@ def set_seed(seed=None, seed_torch=True):
         torch.cuda.manual_seed(seed)
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
-
     print(f'Random seed {seed} has been set.')
 
 
@@ -232,12 +231,12 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
             grad_norm = torch.cat(
                 [param.grad.data.flatten() for param in model.parameters() if param.grad is not None]).norm()
             for param in model.parameters():
-                if param.shape == torch.Size([8,600]):
+                if param.shape == torch.Size([8,300]):
                     nnum = 109
                     #print('Printing this epoch')
                     dL = param[3,nnum].item()
                     dS = param[7,nnum].item()
-                    print('Weights: ', param[3,nnum].item(), param[7,nnum].item())
+                    #print('Weights: ', param[3,nnum].item(), param[7,nnum].item())
                     #print('Weights v2', model.encoder.shape_function.d[:,nnum])
                     gradL = param.grad.data[3,nnum].item()
                     gradS = param.grad.data[7,nnum].item()
@@ -262,7 +261,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
             
             optimizer_MI.step()
             
-            check_d(model, 109, 2, 600)
+            #check_d(model, 109, 2, 600)
             
             model.encoder.normalize()
             
@@ -319,8 +318,8 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
                 r = output.r.detach().cpu().numpy().mean(-1)  
                 writer.add_histogram("histogram/r", r, iteration, bins=100)
 
-                gain = model.encoder.logA.detach().exp().cpu().numpy()
-                writer.add_histogram("histogram/gain", gain, iteration, bins=100)
+                #gain = model.encoder.logA.detach().exp().cpu().numpy()
+                #writer.add_histogram("histogram/gain", gain, iteration, bins=100)
                 bias = model.encoder.logB.detach().exp().cpu().numpy()
                 writer.add_histogram("histogram/bias", bias, iteration, bins=100)
                 if hasattr(model.encoder, "shape_function"):

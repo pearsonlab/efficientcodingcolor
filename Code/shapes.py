@@ -56,6 +56,7 @@ class DifferenceOfGaussianShape(Shape):
     
 
     def shape_function(self, rr):   
+        #print(torch.min(rr[:,130]))
         n_params = self.shape_params.shape[0]
         logA_index = np.array(range(0,n_params,4))
         logB_index = logA_index + 1
@@ -63,15 +64,15 @@ class DifferenceOfGaussianShape(Shape):
         D_index = logA_index + 3
 
         logA = self.shape_params[logA_index]; logB = self.shape_params[logB_index]; 
+        #logA = self.shape_params[0,:]; logB = self.shape_params[logB_index]; 
         logitC = self.shape_params[logitC_index]; d = self.shape_params[D_index]
 
-        a_pre = logA.exp()
+        a_pre = logA.exp() #+ 0.5 #Greg's idea to to prevent a much larger than 1. 
         b = logB.exp()
         a = a_pre # make the center smaller than the surround
         b = 1/(1/a + 1/b)
         c = logitC.sigmoid()  #to keep it within (0, 1)
-        #d = d.sigmoid() - 0.5 #Edit June 3rd, 2024.
-        
+        #d = d.sigmoid() - 0.5 #Removed this so that d is a normal parameter that includes the gain. 
         #d = d/torch.sqrt(torch.sum(d**2, 0))
         self.a, self.b, self.c, self.d = a.detach(), b.detach(), c.detach(), d.detach()
         
@@ -80,7 +81,10 @@ class DifferenceOfGaussianShape(Shape):
         rr = torch.unsqueeze(rr,1)
         rr = rr.repeat(1,self.n_colors,1)
         #print('a:',a[0],'b',b[0], 'logA', logA[0], 'logB', logB[0])
-        DoG = d*(torch.exp(-a * rr) - c * torch.exp(-b * rr))
+        DoG_pre = torch.exp(-a * rr) - c * torch.exp(-b * rr)
+        DoG = d*DoG_pre
+        #DoG = d*DoG_pre
+        #print('DoG_pre: ', DoG_pre[100,:,50], "DoG: ", DoG[100,:,50], "d: ", d[:,50])
         DoG = torch.swapaxes(DoG, 0, 1) #David: Without this line, output of this module and the shape of the stimuli don't match. Important bug that took multiple weeks to fix. 
         self.W = DoG
         DoG = DoG.flatten(0,1)
