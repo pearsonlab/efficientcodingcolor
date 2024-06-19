@@ -39,26 +39,26 @@ from bokeh.models.glyphs import ImageURL
 
 
 
-save = '240301-055438'
-save2 = '240513-002123'
+save = '240301-055438/test2'
+save2 = '240614-003858'
+#save2 = '240513-002123'
 #save2 = '240516-182956'
 #save = '230625-235533'
 #save = '230705-141246'
-path = "../../saves/" + save + "/" 
-path2 = "../../saves/" + save2 + "/" 
+path = "../../saves/"
 epoch = None
 
-n_clusters_global = 8 #Best value for 240301-055438 is 4
+n_clusters_global = 6 #Best value for 240301-055438 is 4
 n_comps_global = 3 #Best value for 240301-055438 is 3
 rad_dist_global = 5 #Best value for 240301-055438 is 5
 class Analysis():
-        def __init__(self, path, epoch = None):
+        def __init__(self, save, path = "../../saves/", epoch = None):
             self.interval = 1000
-            self.path = path
-            self.save = path[-14:-1]
+            self.path = path + save + '/'
+            self.save = save
             if epoch == None:
-                last_cp_file = find_last_cp(path)
-                last_model_file = find_last_model(path)
+                last_cp_file = find_last_cp(self.path)
+                last_model_file = find_last_model(self.path)
                 epoch = int(last_model_file[6:-3])
             else:
                 last_cp_file = "checkpoint-" + str(epoch) + ".pt"
@@ -68,8 +68,8 @@ class Analysis():
             
             self.max_iteration = int(last_cp_file[11:-3])
             self.iterations = np.array(range(self.interval,self.max_iteration,self.interval))
-            self.cp = torch.load(path + last_cp_file)
-            self.model = torch.load(path + last_model_file)
+            self.cp = torch.load(self.path + last_cp_file)
+            self.model = torch.load(self.path + last_model_file)
             
             if 'firing_restriction' in self.cp['args'].keys():
                 self.firing_restriction = self.cp['args']['firing_restriction']
@@ -147,6 +147,8 @@ class Analysis():
             
         def get_DoG_params(self):
             if self.parametrized:
+                self.gain = self.model.encoder.logA.exp().cpu().detach().numpy()
+                self.bias = self.model.encoder.logB.exp().cpu().detach().numpy()
                 self.a = self.model.encoder.shape_function.a.cpu().detach().numpy()
                 self.b = self.model.encoder.shape_function.b.cpu().detach().numpy()
                 self.c = self.model.encoder.shape_function.c.cpu().detach().numpy()
@@ -289,9 +291,10 @@ class Analysis():
                 Videos_folder = 'file:///C:/Users/David/Documents/GitHub/efficientcodingcolor/Videos/'
             else:
                 Videos_folder = 'https://raw.githubusercontent.com/pearsonlab/efficientcodingcolor/main/Meetings/Bokeh/'
-            folder = Videos_folder + self.save + '/rad_avgs/'
+            folder_rads = Videos_folder + self.save + '/rad_avgs/'
+            folder_rfs = Videos_folder + self.save + '/RFs/'
             
-            pathways = np.unique(test.type)
+            pathways = np.unique(self.type)
             all_neurons = np.arange(0, self.n_neurons)
             figures = []
             for path in pathways: 
@@ -306,7 +309,9 @@ class Analysis():
     			data=dict(
     				x=kernel_centers[neurons_select,0],
     				y=kernel_centers[neurons_select,1],
-    				imgs = [folder + 'rad_avg_' + str(i)+'.png' for i in neurons_num],
+    				rads = [folder_rads + 'rad_avg_' + str(i)+'.png' for i in neurons_num],
+                    rfs0 = [folder_rfs + 'RFs_' + str(i)+ '_0' + '.png' for i in neurons_num],
+                    rfs1 = [folder_rfs + 'RFs_' + str(i)+ '_1' + '.png' for i in neurons_num],
                     desc = neurons_num,
                     dL = all_dL,
                     dS = all_dS,
@@ -317,7 +322,21 @@ class Analysis():
                             <div>
                                 <div>
                                     <img
-                                        src="@imgs" height="200" alt="@imgs" width="200"
+                                        src="@rads" height="200" alt="@rads" width="200"
+                                        style="float: left; margin: 0px 30px 30px 0px;"
+                                        border="2"
+                                    ></img>
+                                </div>
+                                <div>
+                                    <img
+                                        src="@rfs0" height="200" alt="@rfs0" width="200"
+                                        style="float: left; margin: 0px 30px 30px 0px;"
+                                        border="2"
+                                    ></img>
+                                </div>
+                                <div>
+                                    <img
+                                        src="@rfs1" height="200" alt="@rfs1" width="200"
                                         style="float: left; margin: 0px 30px 30px 0px;"
                                         border="2"
                                     ></img>
@@ -476,16 +495,16 @@ class Analysis():
                 count = count + 1
                 plt.close()
                 
-        def get_images(self):
-            images = KyotoNaturalImages('kyoto_natim', self.kernel_size, True, 'cuda', self.n_colors, self.image_restriction)
+        def get_images(self, masking = True, whiten_pca = None):
+            images = KyotoNaturalImages('kyoto_natim', self.kernel_size, masking, 'cuda', self.n_colors, self.image_restriction)
             cov = images.covariance()
             self.images = images
-            self.images_cov = cov
+            self.images.cov = cov
             return images, cov
         
-            
+        
         #This returns responses for every neuron
-        def get_responses(self, batch = 128, n_cycles = 100):
+        def get_responses(self, normalize_color, batch = 128, n_cycles = 100):
             images, cov = self.get_images()
             self.model.encoder.data_covariance = cov
             resp = []
@@ -512,7 +531,7 @@ class Analysis():
         def compute_loss(self, batch = 128, n_cycles = 1000, skip_read = False):
             if not skip_read:
                 self.get_images() #BUG HERE restriction check will not always work. Can compute images with restriction then no restriction = don't recompute
-            self.model.encoder.data_covariance = self.images_cov
+            self.model.encoder.data_covariance = self.images.cov
             images = self.images
             losses, MI, r = [], [], []
             for this_cycle in range(n_cycles):
@@ -528,8 +547,36 @@ class Analysis():
                 del model, images_load, images_sample
             del images, self.images
             return losses,MI,r
+        
+        def get_cov_type(self, normalize_color):
+            if self.resp is None:
+                self.get_responses(normalize_color)
+            types = np.unique(self.type)
+            n_types = types.shape[0]
+            cov_type = np.zeros([n_types,n_types])
+            for type1 in types:
+                for type2 in types:
+                    resp1 = np.mean(self.resp[:,self.type == type1], axis = 1)
+                    resp2 = np.mean(self.resp[:,self.type == type2], axis = 1)
+                    cov_type[type1, type2] = np.corrcoef(resp1, resp2)[0,1]
+            self.cov_type = cov_type
+            fig = plt.figure()
+            subfigs = fig.subfigures(1,2)
+            cov_ax = subfigs[0].gca()
+            plot = cov_ax.imshow(cov_type, vmax = 1, vmin = -1, cmap = "PiYG")
+            cov_ax.set_xticks([0,1,2,3], labels = [1,2,3,4], size = 20)
+            cov_ax.set_yticks([0,1,2,3], labels = [1,2,3,4], size = 20)
+            bar = subfigs[0].colorbar(plot)
+            bar.ax.tick_params(labelsize=20)
+
+            RFs = subfigs[1].subplots(n_types,1)
+            #rf1 = subfigs[1].add_subplot(4,1,1, adjustable = 'box', aspect =0.1)
+            for t in types:
+                RFs[t].set_aspect('equal', 'box')
+                self.plot_rad_avg(self.rad_avg[self.type == t,:,:][0,:,:], axis = RFs[t], title = 'type # ' + str(t+1))
+            plt.show()
             
-            
+        
         def get_cov_colors(self, batch = 100):
             images,cov = self.get_images()
             img_v1 = next(cycle(DataLoader(images, batch))).to('cuda')
@@ -751,7 +798,7 @@ class Analysis():
             fig.supxlabel('Radial distance from center (pixels)', y = 0.05, size = 24)
             fig.supylabel('Weight', x = 0.07, size = 24)
         
-        def plot_rad_avg(self, rad_avg, axis = None, labels = False):
+        def plot_rad_avg(self, rad_avg, axis = None, labels = False, title = None):
             if axis is None:
                 fig, axis = plt.subplots(1,1)
             if self.n_colors == 3:
@@ -764,18 +811,32 @@ class Analysis():
             if labels:
                 axis.set_xlabel("Distance from center", size = 50)
                 axis.set_ylabel("Weight", size = 50)
+            if title is not None:
+                axis.set_title(title, size = 30)
             
         
-        def make_rads_folder(self):
+        def make_rads_folder(self, make_rfs = True):
             matplotlib.use("agg")
             rads_folder = self.Videos_folder + '/rad_avgs/'
+            rfs_folder = self.Videos_folder + '/RFs/'
             if not os.path.exists(rads_folder):
                 os.mkdir(rads_folder)
+            if not os.path.exists(rfs_folder):
+                os.mkdir(rfs_folder)
             
             for n in range(self.n_neurons):
                 self.plot_rad_avg(self.rad_avg[n,:,:])
                 plt.savefig(rads_folder + '/' + 'rad_avg_' + str(n) + '.png')
                 plt.close()
+                if make_rfs:
+                    
+                    for c in range(self.n_colors):
+                        RF = self.W[n,:,:,c]
+                        v_range = np.max(abs(RF))
+                        plt.imshow(RF, vmin = -v_range, vmax = v_range)
+                        plt.title("v_range = " + str(round(v_range, 4)), size = 30)
+                        plt.savefig(rfs_folder + '/RFs_' + str(n) + '_' + str(c) + '.png')
+                        plt.close()
             matplotlib.use("Qtagg")
                 
                 
@@ -1153,10 +1214,10 @@ class Analysis_time():
         
     
 
-test = Analysis(path, epoch)
-test2 = Analysis(path2, epoch)
+test = Analysis(save, path, epoch)
+#test2 = Analysis(save2, path, epoch)
 test(n_comps_global, rad_dist_global, n_clusters_global)#, test2(2)
-test2(n_comps_global, rad_dist_global, n_clusters_global)
+#test2(n_comps_global, rad_dist_global, n_clusters_global)
 #test_all = Analysis_time(path, 10000, n_comps_global, rad_dist_global, n_clusters_global, stop_epoch = 2000000)
 #test_all2 = Analysis_time(path2, 10000, n_comps_global, rad_dist_global, n_clusters_global, stop_epoch = 2000000)
 #test_all.epoch_metrics()

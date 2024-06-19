@@ -20,9 +20,41 @@ path = "../../saves/" + save + "/"
 #test = Analysis(path)
 #test.get_images()
 
-img_full = KyotoNaturalImages('kyoto_natim', 18,True, 'cpu', 2, 'True', False)
+def get_samples(kernel_size, n_colors = 3):
+    img_full = KyotoNaturalImages('kyoto_natim', kernel_size,True, 'cpu', n_colors, 'True', False)
+    load = next(cycle(DataLoader(img_full, 100000))).to('cpu')
+    return load
+load = get_samples(18)
 
-load = next(cycle(DataLoader(img_full, 100000))).to('cpu')
+#f = np.fft.fft2(load)
+f1 = np.fft.fft2(load[:,0,:,:] - load[:,1,:,:])
+f2 = np.fft.fft2(load[:,2,:,:] - (load[:,0,:,:] + load[:,1,:,:])/2)
+f = np.stack([f1,f2], axis = 1)
+psd_pre = abs(f)**2
+psd_2D = np.mean(psd_pre, axis = 0)
+
+def make_psd_1D(psd_2D):
+    fig, ax = plt.subplots(1)
+    lms = ['Red/green', 'Blue/yellow', 'S']
+    rgb = ['r', 'g', 'b']
+    size = psd_2D.shape[1]
+    lines = []
+    for c in range(psd_2D.shape[0]):
+        freqs_norm = []
+        power = []
+        freqs = np.fft.fftfreq(size)
+        for i in range(int(size/2)):
+            for j in range(int(size/2)):
+                freqs_norm.append(np.sqrt(freqs[i]**2 + freqs[j]**2))
+                power.append(psd_2D[c, i, j])
+        log_freqs = np.log10(freqs_norm)
+        log_power = np.log10(power)
+        line, = ax.plot(log_freqs, log_power, 'o', label = lms[c], color = rgb[c])
+        lines.append(line)
+    ax.set_xlabel("log10(Frequency norm)", size = 30)
+    ax.set_ylabel("log10(power)", size = 30)
+    ax.legend(handles = lines, fontsize = 50)
+
 #load = flip_images(load,0.5, 'cpu')
 plt.figure()
 

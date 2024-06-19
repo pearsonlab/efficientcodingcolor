@@ -180,7 +180,7 @@ class Encoder(nn.Module):
         
         if self.shape is not None:
             self.W = self.shape_function(self.kernel_centers, self.kernel_polarities)
-        gain = 1 #Edit June 3rd, 2024. self.logA.exp()  # shape = [J]
+        gain = self.logA.exp()  # shape = [J]
         bias = self.logB.exp()
         
         if corr_noise_sd == 0 or corr_noise_sd == None:
@@ -262,9 +262,11 @@ class OutputTerms(object):
         else:
             target = float(target)
         if self.model.Lambda.shape[0] == 1:
-            h = self.r.sub(target).mean()  # the equality constraint
+            #h = self.r.sub(target).mean()  # Original version by Nayoung
+            h = (self.r-1).mean()
         else:
-            h = self.r.sub(target).mean(dim=0)  # the equality constraint
+            #h = self.r.sub(target).mean(dim=0)  # Original version by Nayoung
+            h = (self.r-1).mean(dim=0)
         
 
         if firing_restriction == "Lagrange":
