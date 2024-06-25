@@ -25,8 +25,6 @@ output_noise = 2
 normalize_color = True
 whiten_pca = [50,50]
 
-
-
 analysis.get_responses(normalize_color)
 
 if whiten_pca is not None:
@@ -35,8 +33,13 @@ if whiten_pca is not None:
 
 #Get X: 
 #if not 'load' in locals():
-load = get_samples(18, 2, normalize_color = normalize_color, whiten_pca = [50,50])[0:n_samples,:,:,:]
-X = load.view(n_samples, -1, 18*18).flatten(1,2).cuda()
+load = get_samples(18, 2, normalize_color = normalize_color)[0:n_samples,:,:,:]
+x = load.view(n_samples, -1, 18*18)
+nx = input_noise * torch.randn_like(x) 
+x_noise = x + nx
+
+X = x.flatten(1,2).cuda()
+X_noise = x_noise.flatten(1,2).cuda()
 
 #Compute WCinW and etc:
 W = analysis.model.encoder.W[:,0:n_neurons]
@@ -49,25 +52,28 @@ WCxW = torch.matmul(WT, torch.matmul(Cx,W))
 WCinW = torch.matmul(WT, torch.matmul(Cin.float(), W))
 WCxinW = torch.matmul(WT, torch.matmul(Cxin, W))
 
-#Compute the responses before and after the softplus:
-resp_linear = torch.matmul(X,W)
+#Compute the responses before and after the softplus. Point is to get G:
+y = torch.matmul(X_noise,W)
+nr = output_noise * torch.randn_like(y)
+y_nr = y + nr 
 gain = torch.tensor(np.repeat(analysis.gain[np.newaxis,0:n_neurons], n_samples, 0), device = 'cuda:0')
 bias = torch.tensor(np.repeat(analysis.bias[np.newaxis,0:n_neurons], n_samples, 0), device = "cuda:0")
-resp = gain * F.softplus(resp_linear - bias, beta = 2.5)
-G_pre = gain * F.sigmoid(2.5 * resp_linear - bias)
-G= torch.diag(torch.mean(G_pre, axis = 0)) #This takes the average of the responses. **** This is an approximation 
+resp = gain * F.softplus(y_nr - bias, beta = 2.5)
+G_pre = gain * F.sigmoid(2.5 * y_nr - bias)
 resp = resp.cpu().detach().numpy()
 
-GWCxWG = torch.matmul(G, torch.matmul(WCxW,G))
-GWCinWG = torch.matmul(G, torch.matmul(WCinW,G))
-GWCxinWG = torch.matmul(G, torch.matmul(WCxinW,G))
+for b in range(G_pre.shape[0]):
+    G= torch.diag(G_pre[b,:]) #This takes the average of the responses. **** This is an approximation 
+    GWCxWG = torch.matmul(G, torch.matmul(WCxW,G))
+    GWCinWG = torch.matmul(G, torch.matmul(WCinW,G))
+    GWCxinWG = torch.matmul(G, torch.matmul(WCxinW,G))
 
-#Compute eigenvals and MI:
-eig = torch.linalg.eig(GWCxinWG + Cout)
-eig_noise = torch.linalg.eig(GWCinWG + Cout)
-eigvals = torch.real(eig[0]).cpu().detach().numpy()
-eigvals_noise = torch.real(eig_noise[0]).cpu().detach().numpy()
-eigvects = torch.real(eig[1]).cpu().detach().numpy()
+    #Compute eigenvals and MI:
+    eig = torch.linalg.eig(GWCxinWG + Cout)
+    eig_noise = torch.linalg.eig(GWCinWG + Cout)
+    eigvals = torch.real(eig[0]).cpu().detach().numpy()
+    eigvals_noise = torch.real(eig_noise[0]).cpu().detach().numpy()
+    eigvects = torch.real(eig[1]).cpu().detach().numpy()
 
 #Plot eigenvals on a log scale:
 plt.plot(np.sort((np.log(eigvals_noise)))[::-1])
@@ -93,12 +99,11 @@ handles = [Rectangle((0, 0), 1, 1, color=c, ec="k") for c in colors]
 plt.legend(handles, labels, fontsize = 40, loc = "upper right")
 fig.suptitle("Distribution of mean responses per neuron", size = 50)
 
-
-resp_linear_mean = np.mean(resp_linear.cpu().detach().numpy(), axis = 0)
-bins = np.linspace(np.min(resp_linear_mean), np.max(resp_linear_mean), 20)
+y_mean = np.mean(y_nr.cpu().detach().numpy(), axis = 0)
+bins = np.linspace(np.min(y_mean), np.max(y_mean), 20)
 fig, axes = plt.subplots(4)
 for t in range(4):
-    axes[t].hist(resp_linear_mean[analysis.type == t], bins = bins, alpha = 0.5, color = colors[t], label = labels[t], edgecolor = 'black')
+    axes[t].hist(y_mean[analysis.type == t], bins = bins, alpha = 0.5, color = colors[t], label = labels[t], edgecolor = 'black')
 handles = [Rectangle((0, 0), 1, 1, color=c, ec="k") for c in colors]
 plt.legend(handles, labels, fontsize = 40, loc = "upper right")
 fig.suptitle("Input to softplus distribution", size = 50)

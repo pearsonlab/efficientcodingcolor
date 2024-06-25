@@ -42,7 +42,6 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           data: str = "imagenet",
           kernel_size: int = 18,
           circle_masking: bool = True,
-          dog_prior: bool = False,
           neurons: int = 300,  # number of neurons, J
           jittering_start: Optional[int] = 0, #originally 200000
           jittering_stop: Optional[int] = 0, #originally 500000
@@ -64,17 +63,15 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
           maxgradnorm: float = 20.0,
           load_checkpoint: str = None,  # checkpoint file to resume training from
           fix_centers: bool = False,  # used if we want to fix the kernel_centers to learn params
-          n_mosaics = 10,
-          whiten_pca_ratio = [50,50],
+          n_mosaics = 1, #Number of mosaics. Only relevant is fix_centers = True
+          whiten_pca_ratio = None, #Default is None
           device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
           firing_restriction = "Lagrange",
-          FR_learning_rate = 0.01,
-          LR_reduce_epochs = [],
-          LR_ratio = 1,
-          corr_noise_sd = 0,
+          corr_noise_sd = 0, #Default is 0. Correlated input noise across space 
           image_restriction = "True", #Default is "True" 
-          flip_odds = 0, #Only works for 2 colors, default is 0
-          norm_image = False): #Removes the mean from each small image vb  
+          flip_odds = 0, #Flips L and S channels with a certain probability. Only works with 2 colors
+          norm_image = False, #Removes the mean from each small image
+          normalize_color = True):  #On the big images, normalize each color separately (mean and sd) instead of together.  
 
     train_args = deepcopy(locals())  # keep all arguments as a dictionary
     for arg in sys.argv:
@@ -87,7 +84,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
     print(f"Logging to {logdir}")
     
 
-    dataset = KyotoNaturalImages('kyoto_natim', kernel_size, circle_masking, device, n_colors, restriction = image_restriction, remove_mean = norm_image)
+    dataset = KyotoNaturalImages('kyoto_natim', kernel_size, circle_masking, device, n_colors, normalize_color, restriction = image_restriction, remove_mean = norm_image)
     if whiten_pca_ratio is not None:
         dataset.pca_color()
         dataset.whiten_pca(whiten_pca_ratio)
@@ -120,12 +117,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
 
     optimizer_class = {"adam": torch.optim.Adam, "sgd": torch.optim.SGD}[optimizer]
     optimizer_kwargs_MI = dict(lr=learning_rate)
-    optimizer_kwargs_FR = dict(lr = FR_learning_rate)
-    if firing_restriction != "Two_losses":
-        optimizer_MI = optimizer_class(model.parameters(), **optimizer_kwargs_MI)
-    else:
-        optimizer_MI = optimizer_class([model.encoder.W], **optimizer_kwargs_MI)
-        optimizer_FR = optimizer_class([model.encoder.logA, model.encoder.logB], **optimizer_kwargs_FR)
+    optimizer_MI = optimizer_class(model.parameters(), **optimizer_kwargs_MI)
     
     
     
@@ -150,7 +142,7 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
     writer = SummaryWriter(log_dir=logdir)
     writer.add_text("train_args", json.dumps(train_args))
     kernel_norm_penalty = 0
-    h_exp = torch.ones([neurons], device = "cuda")
+    #h_exp = torch.ones([neurons], device = "cuda")
     patience = 0
     cooldown_timer = 0
     
@@ -187,30 +179,12 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
             
             torch.manual_seed(iteration)
 
-            output: OutputTerms = model(batch, h_exp, firing_restriction, corr_noise_sd, record_C = record_C) #This is the line where forward gets called
+            output: OutputTerms = model(batch, firing_restriction, corr_noise_sd, record_C = record_C) #This is the line where forward gets called
             metrics: OutputMetrics = output.calculate_metrics(iteration, firing_restriction)
             h_current = metrics.return_h().detach()
-            h_exp = (1 - FR_learning_rate)*h_exp + FR_learning_rate*h_current
             effective_count = neurons
             
             loss_MI = metrics.final_loss(firing_restriction) + kernel_norm_penalty
-            #if iteration == 1:
-            #    loss_smooth = loss_MI.detach().cpu()
-            #    best_loss_smooth = loss_smooth
-                
-            #else:
-            #    loss_smooth = 0.999*loss_smooth + 0.001*loss_MI.detach().cpu()
-            #if loss_smooth > best_loss_smooth:
-            #    best_loss_smooth = loss_smooth.clone()
-            #    patience = 0
-            
-            #if patience > LR_patience:
-            #    for g in optimizer_MI.param_groups:
-            #        g['lr'] = g['lr']*LR_ratio
-            #        print("Reduced LR to:", g['lr'])
-            #        print(loss_smooth, best_loss_smooth)
-            #        patience = 0
-            #        cooldown_timer = 0
                 
                 
             loss_FR = torch.sum(metrics.return_h()**2)
@@ -220,11 +194,6 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
                 loss_MI = loss_MI + centering_weight * kernel_variance.mean()
             
             optimizer_MI.zero_grad()
-            if firing_restriction == "Two_losses": 
-                optimizer_FR.zero_grad()
-                loss_FR.backward(retain_graph = True)
-                optimizer_FR.step()
-                optimizer_FR.zero_grad()
         
             loss_MI.backward(retain_graph=True) 
             param_norm = torch.cat([param.data.flatten() for param in model.parameters()]).norm()

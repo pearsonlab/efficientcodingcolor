@@ -34,28 +34,26 @@ from bokeh.layouts import grid
 from bokeh.plotting import figure, output_file, show, ColumnDataSource
 from bokeh.models import HoverTool, WheelZoomTool
 from bokeh.models.glyphs import ImageURL
+import torch.nn.functional as F
 #import cv2
 
 
 
-
-save = '240301-055438/test2'
-save2 = '240614-003858'
-#save2 = '240513-002123'
-#save2 = '240516-182956'
-#save = '230625-235533'
-#save = '230705-141246'
+run_code = True
+#save = '240301-055438'
+save = "artificial_mosaics/Artificial1"
 path = "../../saves/"
 epoch = None
 
-n_clusters_global = 6 #Best value for 240301-055438 is 4
+n_clusters_global = 2 #Best value for 240301-055438 is 4
 n_comps_global = 3 #Best value for 240301-055438 is 3
 rad_dist_global = 5 #Best value for 240301-055438 is 5
 class Analysis():
-        def __init__(self, save, path = "../../saves/", epoch = None):
+        def __init__(self, save, path = "../../saves/", epoch = None, device = "cuda:0"):
             self.interval = 1000
             self.path = path + save + '/'
             self.save = save
+            self.device = device
             if epoch == None:
                 last_cp_file = find_last_cp(self.path)
                 last_model_file = find_last_model(self.path)
@@ -69,6 +67,11 @@ class Analysis():
             self.max_iteration = int(last_cp_file[11:-3])
             self.iterations = np.array(range(self.interval,self.max_iteration,self.interval))
             self.cp = torch.load(self.path + last_cp_file)
+            self.input_noise = self.cp['args']['input_noise']
+            self.output_noise = self.cp['args']['output_noise']
+            self.whiten_pca_ratio = self.cp['args']['whiten_pca_ratio']
+            self.masking = self.cp['args']['circle_masking']
+
             self.model = torch.load(self.path + last_model_file)
             
             if 'firing_restriction' in self.cp['args'].keys():
@@ -112,7 +115,17 @@ class Analysis():
                 self.image_restriction = self.cp['args']['image_restriction']
             else:
                 self.image_restriction = 'True'
+                
+            if 'normalize_color' in self.cp['args'].keys():
+                self.normalize_color = self.cp['args']['normalize_color']
+            else:
+                self.normalize_color = False
             
+            if 'norm_image' in self.cp['args'].keys():
+                self.remove_mean = self.cp['args']['norm_image']
+            else:
+                self.remove_mean = False
+
             center_surround_ratio = []
             for n in range(self.n_neurons):
                 ON_sum = np.sum(np.clip(self.W[n,:,:,:],0,np.inf))
@@ -288,11 +301,11 @@ class Analysis():
         def mosaics_bokeh(self, github = False):
             kernel_centers = self.kernel_centers
             if github is False:
-                Videos_folder = 'file:///C:/Users/David/Documents/GitHub/efficientcodingcolor/Videos/'
+                Videos_folder = '../efficientcodingcolor/Videos/' + self.save 
             else:
                 Videos_folder = 'https://raw.githubusercontent.com/pearsonlab/efficientcodingcolor/main/Meetings/Bokeh/'
-            folder_rads = Videos_folder + self.save + '/rad_avgs/'
-            folder_rfs = Videos_folder + self.save + '/RFs/'
+            folder_rads = Videos_folder + '/rad_avgs/'
+            folder_rfs = Videos_folder + '/RFs/'
             
             pathways = np.unique(self.type)
             all_neurons = np.arange(0, self.n_neurons)
@@ -366,6 +379,8 @@ class Analysis():
                 figures.append[figure()]
             figures = np.reshape(figures, [nrow, ncol]).tolist() #This is where the bug is 
             all_figs = grid(figures)
+            
+            output_file("../../bokeh_files/hello.html")
             show(all_figs)
 
 
@@ -495,24 +510,27 @@ class Analysis():
                 count = count + 1
                 plt.close()
                 
-        def get_images(self, masking = True, whiten_pca = None):
-            images = KyotoNaturalImages('kyoto_natim', self.kernel_size, masking, 'cuda', self.n_colors, self.image_restriction)
+        def get_images(self):
+            images = KyotoNaturalImages('kyoto_natim', self.kernel_size, self.masking, self.device, self.n_colors, self.normalize_color, self.image_restriction, self.remove_mean)
             cov = images.covariance()
+            if self.whiten_pca_ratio is not None:
+                images.pca_color()
+                images.whiten_pca(self.whiten_pca_ratio)
             self.images = images
             self.images.cov = cov
             return images, cov
         
         
         #This returns responses for every neuron
-        def get_responses(self, normalize_color, batch = 128, n_cycles = 100):
+        def get_responses(self, batch = 128, n_cycles = 100):
             images, cov = self.get_images()
             self.model.encoder.data_covariance = cov
             resp = []
             dets = []
             for i in range(n_cycles):
-                images_load = next(cycle(DataLoader(images, batch))).to('cuda')
+                images_load = next(cycle(DataLoader(images, batch))).to(self.device)
                 images_sample = images_load.reshape([batch,self.n_colors,self.kernel_size**2])
-                z, r, C_z, C_zx = self.model.encoder(image = images_sample, h_exp = 0, firing_restriction = 'Lagrange', corr_noise_sd = 0)
+                z, r, C_z, C_zx = self.model.encoder(image = images_sample, firing_restriction = 'Lagrange', corr_noise_sd = 0)
                 
                 L_numerator = C_z.cholesky()
                 logdet_numerator = 2 * L_numerator.diagonal(dim1=-1, dim2=-2).log2().sum(dim=-1)
@@ -944,12 +962,12 @@ class Analysis():
                             RF_pca[comp, x , y, color] = comps[comp, dist, color]
             self.RF_pca = RF_pca
             
-        def fit_DoG(self, device = "cuda:0", LR = 0.001, n_steps = 20000):
+        def fit_DoG(self, LR = 0.001, n_steps = 20000):
             all_loss = []
-            kernel_centers = nn.Parameter(torch.tensor(self.kernel_centers, device = device))
-            DoG_mod = shapes.get_shape_module("difference-of-gaussian")(torch.tensor(self.kernel_size, device = device), self.n_colors, torch.tensor(self.n_neurons, device = device)).to(device)
+            kernel_centers = nn.Parameter(torch.tensor(self.kernel_centers, device = self.device))
+            DoG_mod = shapes.get_shape_module("difference-of-gaussian")(torch.tensor(self.kernel_size, device = self.device), self.n_colors, torch.tensor(self.n_neurons, device = self.device)).to(self.device)
             params = DoG_mod.shape_params
-            RFs = torch.tensor(self.w_flat, device = device)
+            RFs = torch.tensor(self.w_flat, device = self.device)
             optimizer = torch.optim.SGD([kernel_centers, DoG_mod.shape_params], lr = LR)
             for i in range(n_steps):
                 optimizer.zero_grad()
@@ -990,21 +1008,21 @@ class Analysis():
         
         def DoG_fit_func(self, shape, centers):
             def W_from_shapes(params):
-                shape.shape_params = nn.Parameter(torch.tensor(params, device = "cuda:0"), requires_grad = False)
-                fit = shape(torch.tensor(centers, device = "cuda:0")).detach().cpu().numpy()
+                shape.shape_params = nn.Parameter(torch.tensor(params, device = self.device), requires_grad = False)
+                fit = shape(torch.tensor(centers, device = self.device)).detach().cpu().numpy()
                 return np.sum(self.w_flat - fit)**2
             return W_from_shapes
             
             #Doesn't work right now :(
-        def fit_DoG_scipy(self, device = "cuda:0"):
-            DoG_mod = shapes.get_shape_module("difference-of-gaussian")(torch.tensor(self.kernel_size, device = device), self.n_colors, torch.tensor(self.n_neurons, device = device)).to(device)
+        def fit_DoG_scipy(self):
+            DoG_mod = shapes.get_shape_module("difference-of-gaussian")(torch.tensor(self.kernel_size, device = self.device), self.n_colors, torch.tensor(self.n_neurons, device = self.device)).to(self.device)
             init_params = DoG_mod.shape_params
             fun = self.DoG_fit_func(DoG_mod, self.kernel_centers)
             optimization = scipy.optimize.minimize(fun, init_params.detach().cpu().numpy(), method = "Nelder-Mead")
             params = np.swapaxes(optimization['x'].reshape([self.n_neurons, 4*self.n_colors]),0,1)
             
-            DoG_mod.shape_params = nn.Parameter(torch.tensor(params, device = device), requires_grad = False)
-            RFs_DoG = DoG_mod(torch.tensor(self.kernel_centers, device = device)).detach().cpu().numpy()
+            DoG_mod.shape_params = nn.Parameter(torch.tensor(params, device = self.device), requires_grad = False)
+            RFs_DoG = DoG_mod(torch.tensor(self.kernel_centers, device = self.device)).detach().cpu().numpy()
             
             RFs_fit = np.swapaxes(np.reshape(RFs_DoG, [self.n_colors,self.kernel_size,self.kernel_size,self.n_neurons]), 0, 3)
             self.RFs_fit = RFs_fit
@@ -1054,7 +1072,7 @@ class Analysis():
                     os.mkdir(new_folder)
                 torch.save(self.model, new_folder + "model-" + str(self.epoch) + ".pt")
                 torch.save(self.cp, new_folder + "checkpoint-" + str(self.epoch) + ".pt")
-            
+                
         
         def __call__(self, n_comps = None, rad_dist = None, n_clusters = None):
             if n_comps is None:
@@ -1091,6 +1109,89 @@ class Analysis():
             #self.get_cov_colors()
             #self.images.pca_color()
             #matplotlib.use("Qtagg")
+
+class MatrixSpectrum:
+        def __init__(self, analysis, batch_size, input_noise = 'default', output_noise = 'default'):
+            #Get X: 
+            #if not 'load' in locals():
+            
+            self.analysis = analysis
+            self.images = analysis.images
+            self.device = analysis.device
+            #self.model = analysis.model
+            self.batch_size = batch_size
+            if input_noise == 'default':
+                input_noise = analysis.input_noise
+            if output_noise == 'default':
+                output_noise = analysis.output_noise
+            load = next(cycle(DataLoader(self.images, batch_size))).to(self.device)
+            x = load.view(batch_size, -1, analysis.kernel_size*analysis.kernel_size)
+            nx = input_noise * torch.randn_like(x) 
+            x_noise = x + nx
+        
+            X = x.flatten(1,2).cuda()
+            X_noise = x_noise.flatten(1,2).cuda()
+        
+            #Compute WCinW and etc:
+            W = analysis.model.encoder.W[:,0:self.analysis.n_neurons]
+            WT = np.swapaxes(W,0,1)
+            Cin = torch.diag(torch.tensor(np.repeat(input_noise, W.shape[0]), device = self.device)).float()
+            Cx = self.images.cov
+            Cxin = Cx + Cin
+            Cout = torch.diag(torch.tensor(np.repeat(output_noise, W.shape[1]), device = self.device)).float()
+            WCxW = torch.matmul(WT, torch.matmul(Cx,W))
+            WCinW = torch.matmul(WT, torch.matmul(Cin.float(), W))
+            WCxinW = torch.matmul(WT, torch.matmul(Cxin, W))
+        
+            #Compute the responses before and after the softplus. Point is to get G:
+            y = torch.matmul(X_noise,W)
+            nr = output_noise * torch.randn_like(y)
+            y_nr = y + nr 
+            gain = torch.tensor(np.repeat(self.analysis.gain[np.newaxis,0:self.analysis.n_neurons], batch_size, 0), device = self.device)
+            bias = torch.tensor(np.repeat(self.analysis.bias[np.newaxis,0:self.analysis.n_neurons], batch_size, 0), device = self.device)
+            resp = gain * F.softplus(y_nr - bias, beta = 2.5)
+            G_pre = gain * F.sigmoid(2.5 * y_nr - bias)
+            resp = resp.cpu().detach().numpy()
+            
+            self.GWCxinWG = []
+            self.GWCxWG = []
+            self.GWCinWG = []
+            self.eigvals = []
+            self.eigvals_noise = []
+            self.detnum = np.sum(np.log(self.eigvals))
+            
+            for b in range(G_pre.shape[0]):
+                G= torch.diag(G_pre[b,:])
+                GWCxWG = torch.matmul(G, torch.matmul(WCxW,G))
+                GWCinWG = torch.matmul(G, torch.matmul(WCinW,G))
+                GWCxinWG = torch.matmul(G, torch.matmul(WCxinW,G))
+                
+                self.GWCxinWG.append(GWCxinWG)
+                self.GWCxWG.append(GWCxWG)
+                self.GWCinWG.append(GWCinWG)
+                
+                #Compute eigenvals and MI:
+                eig = torch.linalg.eig(GWCxinWG + Cout)
+                eig_noise = torch.linalg.eig(GWCinWG + Cout)
+                eigvals = torch.real(eig[0]).cpu().detach().numpy()
+                eigvals_noise = torch.real(eig_noise[0]).cpu().detach().numpy()
+                eigvects = torch.real(eig[1]).cpu().detach().numpy()
+                
+                self.eigvals.append(eigvals)
+                self.eigvals_noise.append(eigvals_noise)
+        def plot_eigenvals(self):
+            #Plot eigenvals on a log scale:
+            for b in range(self.batch_size):
+                plt.plot(np.sort((np.log(self.eigvals[b])))[::-1])
+                plt.xlabel("Index", size = 30)
+                plt.ylabel("log(Eigenvalue)", size = 30)
+                plt.title("GW$^T$(C$_x$ + C$_{in}$)WG + C$_{out}$", size = 50)
+                numerator = np.sum(np.log(self.eigvals[b]))
+                denominator = np.sum(np.log(self.eigvals_noise[b]))
+                print(numerator, denominator, numerator - denominator)
+
+                
+
 
 class Analysis_time():
     def __init__(self, path, interval, n_comps, rad_dist, n_clusters, start_epoch = 0, stop_epoch = np.inf):
@@ -1213,11 +1314,11 @@ class Analysis_time():
             
         
     
-
-test = Analysis(save, path, epoch)
-#test2 = Analysis(save2, path, epoch)
-test(n_comps_global, rad_dist_global, n_clusters_global)#, test2(2)
-#test2(n_comps_global, rad_dist_global, n_clusters_global)
-#test_all = Analysis_time(path, 10000, n_comps_global, rad_dist_global, n_clusters_global, stop_epoch = 2000000)
-#test_all2 = Analysis_time(path2, 10000, n_comps_global, rad_dist_global, n_clusters_global, stop_epoch = 2000000)
-#test_all.epoch_metrics()
+if run_code:
+    test = Analysis(save, path, epoch)
+    #test2 = Analysis(save2, path, epoch)
+    test(n_comps_global, rad_dist_global, n_clusters_global)#, test2(2)
+    #test2(n_comps_global, rad_dist_global, n_clusters_global)
+    #test_all = Analysis_time(path, 10000, n_comps_global, rad_dist_global, n_clusters_global, stop_epoch = 2000000)
+    #test_all2 = Analysis_time(path2, 10000, n_comps_global, rad_dist_global, n_clusters_global, stop_epoch = 2000000)
+    #test_all.epoch_metrics()

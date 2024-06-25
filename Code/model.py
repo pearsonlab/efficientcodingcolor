@@ -173,7 +173,7 @@ class Encoder(nn.Module):
         self.nx_cov = cov
         self.nx_L = torch.tensor(np.linalg.cholesky(cov), dtype = torch.float32, device = "cuda:0")
 
-    def forward(self, image: torch.Tensor, h_exp: torch.Tensor, firing_restriction, corr_noise_sd, record_C = False):
+    def forward(self, image: torch.Tensor, firing_restriction, corr_noise_sd, record_C = False):
         D = self.D
         L = image.shape[1]
         B = image.shape[0]
@@ -311,12 +311,12 @@ class RetinaVAE(nn.Module):
 
         self.Lambda = nn.Parameter(torch.rand(neurons))
 
-    def forward(self, x, h_exp, firing_restriction, corr_noise_sd = 0, record_C = False) -> OutputTerms:
+    def forward(self, x, firing_restriction, corr_noise_sd = 0, record_C = False) -> OutputTerms:
         batch_size = x.shape[0]
         x = x.view(batch_size, -1, self.D)  # x.shape = [B, L, D] (L: input time points)
         
         o = OutputTerms(self)
-        o.z, o.r, numerator, denominator = self.encoder(x, h_exp, firing_restriction, corr_noise_sd, record_C = record_C)
+        o.z, o.r, numerator, denominator = self.encoder(x, firing_restriction, corr_noise_sd, record_C = record_C)
 
         if numerator is not None:
             L_numerator = numerator.cholesky()

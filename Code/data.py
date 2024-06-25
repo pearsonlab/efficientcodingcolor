@@ -46,14 +46,16 @@ class KyotoNaturalImages(Dataset):
     either 500x640 or 640x500 size, from which a rectangular patch is randomly extracted.
     """
 
-    def __init__(self, root, kernel_size, circle_masking, device, n_colors, restriction = 'True', remove_mean = False, normalize_color = False):
+    def __init__(self, root, kernel_size, circle_masking, device, n_colors, normalize_color, restriction = 'True', remove_mean = False):
         #root = 'kyoto_natim'
         #device = 'cuda'
         print('root', root)
         files = [mat for mat in os.listdir(root) if mat.endswith('.mat')]
         print("Loading {} images from {} ...".format(len(files), root))
         self.n_colors = n_colors
-        
+        self.normalize_color = normalize_color
+        self.circle_masking = circle_masking
+        self.remove_mean = remove_mean
         images = []
         L_means = 0
         L_stds = 0
@@ -65,9 +67,9 @@ class KyotoNaturalImages(Dataset):
         for file in tqdm(files):
             if file.endswith('.mat'):
                 #David: Combined the responses from the three different cones into a single image array
-                imageOM = loadmat(os.path.join(root, file))['OM'].astype(np.float)
-                imageOS = loadmat(os.path.join(root, file))['OS'].astype(np.float)
-                imageOL = loadmat(os.path.join(root, file))['OL'].astype(np.float)
+                imageOM = loadmat(os.path.join(root, file))['OM'].astype(np.float64)
+                imageOS = loadmat(os.path.join(root, file))['OS'].astype(np.float64)
+                imageOL = loadmat(os.path.join(root, file))['OL'].astype(np.float64)
                 
                 #Inhibition from an "horizontal" cell to reduce MI between M and S cones. 
                 #MS_tot = imageOM + imageOS
@@ -88,7 +90,7 @@ class KyotoNaturalImages(Dataset):
                 #image = np.tensordot(pca_comps, image, axes = 1)
                 
             else:
-                image = np.array(Image.open(os.path.join(root, file)).convert('L')).astype(np.float)
+                image = np.array(Image.open(os.path.join(root, file)).convert('L')).astype(np.float64)
                 
             std = np.std(image)
             if std < 1e-4: #This line never gets called 
