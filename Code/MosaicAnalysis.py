@@ -40,8 +40,8 @@ import torch.nn.functional as F
 
 
 run_code = True
-#save = '240301-055438'
-save = "artificial_mosaics/Artificial1"
+save = '240301-055438'
+#save = "artificial_mosaics/Artificial1"
 path = "../../saves/"
 epoch = None
 
@@ -1111,21 +1111,18 @@ class Analysis():
             #matplotlib.use("Qtagg")
 
 class MatrixSpectrum:
-        def __init__(self, analysis, batch_size, input_noise = 'default', output_noise = 'default'):
+        def __init__(self, model, images, batch_size, input_noise, output_noise):
             #Get X: 
             #if not 'load' in locals():
-            
-            self.analysis = analysis
-            self.images = analysis.images
-            self.device = analysis.device
+            self.n_neurons = model.encoder.W.shape[1]
+            self.kernel_size = int(np.sqrt(model.encoder.D))
+            self.n_colors = int(model.encoder.W.shape[0]/model.encoder.D)
+            self.images = images
+            self.device = model.encoder.W.device
             #self.model = analysis.model
             self.batch_size = batch_size
-            if input_noise == 'default':
-                input_noise = analysis.input_noise
-            if output_noise == 'default':
-                output_noise = analysis.output_noise
             load = next(cycle(DataLoader(self.images, batch_size))).to(self.device)
-            x = load.view(batch_size, -1, analysis.kernel_size*analysis.kernel_size)
+            x = load.view(batch_size, -1, self.kernel_size*self.kernel_size)
             nx = input_noise * torch.randn_like(x) 
             x_noise = x + nx
         
@@ -1133,7 +1130,7 @@ class MatrixSpectrum:
             X_noise = x_noise.flatten(1,2).cuda()
         
             #Compute WCinW and etc:
-            W = analysis.model.encoder.W[:,0:self.analysis.n_neurons]
+            W = model.encoder.W[:,0:self.n_neurons]
             WT = np.swapaxes(W,0,1)
             Cin = torch.diag(torch.tensor(np.repeat(input_noise, W.shape[0]), device = self.device)).float()
             Cx = self.images.cov
@@ -1147,8 +1144,8 @@ class MatrixSpectrum:
             y = torch.matmul(X_noise,W)
             nr = output_noise * torch.randn_like(y)
             y_nr = y + nr 
-            gain = torch.tensor(np.repeat(self.analysis.gain[np.newaxis,0:self.analysis.n_neurons], batch_size, 0), device = self.device)
-            bias = torch.tensor(np.repeat(self.analysis.bias[np.newaxis,0:self.analysis.n_neurons], batch_size, 0), device = self.device)
+            gain = torch.repeat_interleave(model.encoder.logA.exp()[np.newaxis,0:self.n_neurons], batch_size, 0)
+            bias = torch.repeat_interleave(model.encoder.logB.exp()[np.newaxis,0:self.n_neurons], batch_size, 0)
             resp = gain * F.softplus(y_nr - bias, beta = 2.5)
             G_pre = gain * F.sigmoid(2.5 * y_nr - bias)
             resp = resp.cpu().detach().numpy()
@@ -1158,8 +1155,10 @@ class MatrixSpectrum:
             self.GWCinWG = []
             self.eigvals = []
             self.eigvals_noise = []
-            self.detnum = np.sum(np.log(self.eigvals))
             
+            
+            numerator = []
+            denominator = []
             for b in range(G_pre.shape[0]):
                 G= torch.diag(G_pre[b,:])
                 GWCxWG = torch.matmul(G, torch.matmul(WCxW,G))
@@ -1179,6 +1178,14 @@ class MatrixSpectrum:
                 
                 self.eigvals.append(eigvals)
                 self.eigvals_noise.append(eigvals_noise)
+                
+                
+                numerator.append(np.sum(np.log(eigvals)))
+                denominator.append(np.sum(np.log(eigvals_noise)))
+                
+            self.detnum = np.sum(np.log(self.eigvals))
+            self.numerator = numerator
+            self.denominator = denominator
         def plot_eigenvals(self):
             #Plot eigenvals on a log scale:
             for b in range(self.batch_size):

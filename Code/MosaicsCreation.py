@@ -32,7 +32,7 @@ kernel_size = 18
 
 
 class Mosaics():
-    def __init__(self, params, neurons_per_mosaic, kernel_size, gain, bias, input_noise, output_noise):
+    def __init__(self, params, neurons_per_mosaic, kernel_size, gain, bias, input_noise, output_noise, images = None):
         
         self.batch_size = 128
         self.kernel_size = kernel_size
@@ -73,11 +73,14 @@ class Mosaics():
             return nn.Parameter(torch.tensor(params_neurons, device = self.device), requires_grad = False)
         
         
+        if images is None:
+            self.images = KyotoNaturalImages('kyoto_natim', kernel_size, circle_masking, self.device, n_colors, normalize_color = True, restriction = image_restriction, remove_mean = norm_image)
+        else:
+            self.images = images
+        if not hasattr(self.images, 'cov'):
+            self.images.covariance()
         
-        self.dataset = KyotoNaturalImages('kyoto_natim', kernel_size, circle_masking, self.device, n_colors, normalize_color = True, restriction = image_restriction, remove_mean = norm_image)
-        self.data_covariance = self.dataset.covariance()
-        
-        load = next(cycle(DataLoader(self.dataset, 100000))).to(self.device)[0:self.batch_size,:,:,:]
+        load = next(cycle(DataLoader(self.images, 100000))).to(self.device)[0:self.batch_size,:,:,:]
         X = load.view(self.batch_size, -1, kernel_size*kernel_size)
         
         model_args = dict(
@@ -88,7 +91,7 @@ class Mosaics():
             nonlinearity = "softplus",
             shape = 'difference-of-gaussian',
             individual_shapes = True,
-            data_covariance=self.data_covariance,
+            data_covariance=self.images.cov,
             beta=-0.5,
             rho=1,
             fix_centers = True,
@@ -110,7 +113,7 @@ class Mosaics():
         FR = []
         MI = []
         for this_cycle in range(n_cycles):
-            load = next(cycle(DataLoader(self.dataset, 100000))).to(self.device)[0:self.batch_size,:,:,:]
+            load = next(cycle(DataLoader(self.images, 100000))).to(self.device)[0:self.batch_size,:,:,:]
             X = load.view(self.batch_size, -1, self.kernel_size*self.kernel_size)
             output: OutputTerms = self.model(X, 'Lagrange', 0) #To update the weights
             metrics: OutputMetrics = output.calculate_metrics(0, 'Lagrange')

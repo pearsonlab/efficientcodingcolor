@@ -184,7 +184,8 @@ class KyotoNaturalImages(Dataset):
                 return result.float()
 
     def covariance(self, num_samples: int = 100000, device: Union[str, torch.device] = None, index=0):
-        return estimated_covariance(self, num_samples, device, index)
+        self.cov = estimated_covariance(self, num_samples, index)
+        return self.cov
     
     def pca_color(self):
         self.n_images = len(self.images)
