@@ -46,9 +46,11 @@ def soft_bandpass(lo, hi, freqs, stiffness=10):
     else:
         return scipy.special.expit(stiffness * (freqs - lo)) * scipy.special.expit(stiffness * (hi - freqs))
 
+#Create Cx assuming the structure of spatiotemporal PSD
 def C(k):
     return A/(np.abs(k)**alpha)
 
+#This is formula 10 from the NeurIPS paper. Computes the optimal solution, but requires knowing nu
 def filter(A_all, sigin, sigout, nu, k_lims=None, o_lims=None):
     def v_opt(k, channel):
         A = A_all[channel]
@@ -297,6 +299,7 @@ def filter_k(kf, eps, k_lims=None, power=alpha):
         return v2
     return v_opt
 
+#This is the filter I need. Equivalent to Formula 34 in John's notes if we replace C by lambda
 def filter(C, nu, k_lims=None):
     def v_opt(k, o):
         CC = np.minimum(C(k), 1e32)

@@ -101,6 +101,7 @@ class KyotoNaturalImages(Dataset):
             M_mean = np.mean(image[1,:,:])
             M_std = np.std(image[1,:,:])
             
+            
             if image.shape[0] > 2:
                 S_mean = np.mean(image[2,:,:])
                 S_std = np.std(image[2,:,:])
