@@ -20,6 +20,14 @@ np.float = np.float64
 np.int = np.int_
 
 
+###NOTE I CHANGED BIN_PSD TO NOT TAKE LOW SPATIAL FREQUENCIES IN X OR Y AS A TEST!!!
+
+#hey = PSD("Nature1_lowres.mp4", [0,10000])
+#hey.average_TS_PSD(250,200)
+
+def cuda_mem():
+    print(np.get_default_memory_pool().used_bytes()/(1+np.get_default_memory_pool().total_bytes()))
+cuda_mem()
 global_path = "/home/david/Github/video_color_PSD/"
 #Taken from: http://www.brucelindbloom.com/index.html?Eqn_RGB_XYZ_Matrix.html
 adobergb2xyz = np.array([[0.5767309, 0.1855540, 0.1881852],
@@ -52,7 +60,10 @@ def check_memory(maximum = 30, print_statement = True):
         print("Currently using " + str(used_memory/total_memory*100) + "% of memory")
     if used_memory/total_memory > maximum/100:
         raise Exception("You're using too much memory, stop!")
-        
+    
+    
+    #Note 1: Run same plot but with log spatial frequency
+    #Note 2: Run same analysis with different window sizes and see if we have same result 
 #This function is obsolete. Use load_video_segment instead. 
 def load_video(filename, n_frames = 10000, path = global_path):
     check_memory(30)
@@ -62,30 +73,31 @@ def load_video_segment(video_clip, frames):
     fps = video_clip.fps
     check_memory(30, print_statement = False)
     video_segment = []
-    print(frames[0], frames[1])
     frames_array = np.linspace(int(frames[0]), int(frames[1]), int(frames[1] - frames[0] + 1))
     #frames_array = np.array(range(frames[0], frames[1]))
     for t in frames_array:
         video_segment.append(video_clip.get_frame(t/fps))
-    return np.array(video_segment)
+    return np.array(video_segment)[:,100:200, 400:500,:]
+    #return np.array(video_segment)
 
 class video_segment():
     #Takes as input a video object from the moviepy.editor package. From this video, takes a segment from index_range. 
     #This segment has images with 8bits integer values ranging from 0 to 255 in srgb, and converts it to 0 to 1 floats in lms space.  
     #Index_range is a list with 2 values, which represent the start and stop frames of the video slice. 
-    def __init__(self, video_clip, frames):
+    def __init__(self, video_clip, frames, color_means, color_stds):
         #index = np.int(np.linspace(index_range[0], index_range[1] - 1, num = index_range[1] - index_range[0]))
         self.video_rgb = load_video_segment(video_clip, frames)
         linear_rgb = self.linearize_srgb()
         xyz = np.dot(srgb2xyz, np.swapaxes(linear_rgb, 3, 2))
         lms = np.dot(xyz2lms, np.swapaxes(xyz, 0, 2))
-        self.video_lms = np.swapaxes(np.swapaxes(lms, 0, 2), 1, 2)
-        self.video_lms = self.normalize_color(self.video_lms)
-        self.video = self.video_lms
-        
+        video_lms = np.swapaxes(np.swapaxes(lms, 0, 2), 1, 2)
+        #video_lms = self.normalize_color(video_lms)
         self.n_colors = self.video_rgb.shape[3]
+        for c in range(self.n_colors):
+            video_lms[:,c,:,:] = (video_lms[:,c,:,:] - color_means[c])/color_stds[c]
+        self.video = video_lms
         
-    
+        
     def linearize_adobergb(self):
         img_float = self.video_rgb.astype(np.float32)
         img_float /= 255
@@ -101,11 +113,15 @@ class video_segment():
         linear_rgb[above_thresh] = ((img_float[above_thresh] + 0.055)/1.055)**2.4
         return linear_rgb
     
+    
     #Normalize each color channel to have mean = 0 and std = 1. Otherwise, S channel just has more power (?)
     def normalize_color(self, video):
         for c in range(3):
-            video[:,c,:,:] -= np.mean(video[:,c,:,:])
-            video[:,c,:,:] /= np.std(video[:,c,:,:])
+            mean = np.mean(video[:,c,:,:])
+            std = np.std(video[:,c,:,:])
+            video[:,c,:,:] -= mean
+            video[:,c,:,:] /= std
+            #print(video.shape, mean, std, c)
         return video
     #Does a 3D PSD on self.video. Only takes real freqs
     def make_psd_3D(self):
@@ -115,7 +131,15 @@ class video_segment():
 
         f3D = np.fft.fftn(self.video, axes = (0,2,3))
         psd3D = abs(f3D)**2
+        self.f3D = f3D
         self.psd3D = psd3D[0:real_temporal_freqs, :, 0:real_spatial_freqs, 0:real_spatial_freqs]
+        
+    def make_Cx(self):
+        real_spatial_freqs = int(self.video.shape[2]/2)
+        real_temporal_freqs = int(self.video.shape[0]/2)
+        #psd2D_space = psd2D_space[:, 0:real_spatial_freqs, 0:real_spatial_freqs]
+
+        f3D = np.fft.fftn(self.video, axes = (0,2,3))
     
     def radial_space_freq(self, space_psd):
         size = space_psd.shape[1]
@@ -129,9 +153,7 @@ class video_segment():
         return freqs_norm, power
     
     #Takes as input 1D arrays that represent frequencies (output of radial_space_freq), power and n_bins. Default is 10. 
-    def bin_1D_psd(self, freqs, power, n_bins):
-        #use np.histogram here :)
-        #instead of scipy
+    def bin_1D_psd_old(self, freqs, power, n_bins):
         freqs_np = np.array(freqs).get()
         power_np = np.array(power).get()
         
@@ -139,53 +161,78 @@ class video_segment():
         power_space_bin = scipy.stats.binned_statistic(freqs_np, power_np, bins = n_bins)[0]
         return np.asarray(freqs_space_bin), np.asarray(power_space_bin)
     
-    def bin_1D_psd(self, freqs, power, n_bins):
+    def bin_psd(self, freqs, power, n_bins):
         bins = numpy.linspace(np.min(freqs), np.max(freqs), n_bins)
         digitized = np.digitize(freqs, bins)
-        bin_means = [power[digitized == i].mean() for i in range(1, len(bins))]
-        return bin_means
+        #self.digitized = digitized #Remove this line later plz 
+        bin_means = [power[digitized == i].reshape([self.psd3D.shape[0],self.n_colors, -1]).mean(axis=2)for i in range(1, len(bins)-1)] #I ran tests and this should be the right order
+        return np.array(bin_means)
     
     #For every temporal frequency, look at the 3D psd for that TF and compute the radial spatial frequencies. Then, bin those radial spatial frequencies in n_bins different bins of the same size. 
     #This returns the log10(STpsd)
-    def make_spatiotemporal_psd(self, n_bins):
+    def make_spatiotemporal_psd(self, n_bins, save_radial_freqs = False, min_freq = 0):
         n_TFs = self.psd3D.shape[0]
-    
+        size = self.psd3D.shape[2]
         STpsd = []
-        for c in range(self.n_colors):
-            STpsd_color = []
-            for t in range(n_TFs):
-                freqs_space, power = self.radial_space_freq(self.psd3D[t,c,:,:])
-                #Flaw: I don't do anything with freqs_space_bin... ever. I lose that information
-                #freqs_space_bin, power_bin = self.bin_1D_psd(freqs_space, power, n_bins = n_bins)
-                power_bin = self.bin_1D_psd(freqs_space, power, n_bins = n_bins)
-                STpsd_color.append(power_bin)
-            STpsd.append(STpsd_color)
-        self.STpsd = np.log10(np.array(STpsd))
+        
+        freqs = np.fft.fftfreq(size*2)[0:int(size)]
+        y_freqs = np.repeat(np.repeat(np.repeat(freqs[np.newaxis,np.newaxis,:, np.newaxis], n_TFs, axis = 0), self.n_colors, axis = 1), freqs.shape[0], axis = 3)
+        x_freqs = np.repeat(np.repeat(np.repeat(freqs[np.newaxis,np.newaxis,np.newaxis,:], n_TFs, axis = 0), self.n_colors, axis = 1), freqs.shape[0], axis = 2)
+        
+        
+        freqs_space = np.sqrt(x_freqs**2 + y_freqs**2)
+        if save_radial_freqs:
+            self.freqs_space = freqs_space #Remove this line if you run out of memory, its meant to be temporary
+        
+        power_bin = self.bin_psd(freqs_space[:,:,min_freq:-1,min_freq:-1], self.psd3D[:,:,min_freq:-1,min_freq:-1], n_bins)
+        self.STpsd = np.log10(power_bin)
 
 
 class PSD():
-    def __init__(self, video_name, max_frame = None, path = global_path):
+    #Frames is an array with 2 values: [frame_min, frame_max]
+    def __init__(self, video_name, time_bins, n_spatial_bins, frames = None, path = global_path, means = None):
+        
         self.video_clip = moviepy.editor.VideoFileClip(path + video_name)
-        if max_frame is None:
-            self.n_frames = int(self.video_clip.duration*self.video_clip.fps)
+        if frames is None:
+            self.max_frame = int(self.video_clip.duration*self.video_clip.fps)
+            self.min_frame = 0
         else:
-            self.n_frames = max_frame
-    
+            self.max_frame = frames[1]
+            self.min_frame = frames[0]
+        self.time_points = np.arange(self.min_frame, self.max_frame, time_bins)
+        self.n_spatial_bins = n_spatial_bins
+        self.compute_means()
+    def compute_means(self):
+        print("Computing mean and std of each color channel")
+        means_sum = 0
+        stds_sum = 0
+        for t in range(self.time_points.shape[0]-1):
+            segment = video_segment(self.video_clip, [self.time_points[t], self.time_points[t+1]], [0,0,0], [1,1,1])
+            mean = np.mean(segment.video, axis = (0,2,3))
+            std = np.std(segment.video, axis = (0,2,3))
+            means_sum += mean
+            stds_sum += std
+            if self.time_points[t]%10000 == 0:
+                print(self.time_points[t], means_sum/t, stds_sum/t)
+        print("Done computing mean and std of each color channel")
+        self.color_means = means_sum/(self.time_points.shape[0]-1)
+        self.color_stds = stds_sum/(self.time_points.shape[0]-1)
+        
     #time_bins = how long should each segment be. n_spatial_bins = we need to bin radial frequencies, how many bins do you want in total.
-    def average_TS_PSD(self, time_bins, n_spatial_bins):
+    def average_TS_PSD(self):
         current_time = time.time()
-        time_points = np.arange(0, self.n_frames, time_bins)
+        
         new = True
         all_PSD = []
-        for t in range(time_points.shape[0]-1):
-            print("Start:", current_time - time.time())
+        for t in range(self.time_points.shape[0]-1):
+            #print("Start:", time.time() - current_time)
             check_memory(50, print_statement = False)
-            segment = video_segment(self.video_clip, [time_points[t], time_points[t+1]])
-            print("Made segment:", current_time - time.time())
+            segment = video_segment(self.video_clip, [self.time_points[t], self.time_points[t+1]], self.color_means, self.color_stds)
+            #print("Made segment:", time.time() - current_time)
             segment.make_psd_3D()
-            print("Make_psd_3D:", current_time - time.time())
-            segment.make_spatiotemporal_psd(n_spatial_bins) #This is where the power values go through log10
-            print("Spatiotemporal_psd", current_time - time.time())
+            #print("Make_psd_3D:", time.time() - current_time)
+            segment.make_spatiotemporal_psd(self.n_spatial_bins, True) #This is where the power values go through log10
+            #print("Spatiotemporal_psd", time.time() - current_time)
             psd = segment.STpsd
             psd3d = segment.psd3D
             self.last_segment = segment
@@ -193,38 +240,41 @@ class PSD():
             if new:
                 psd_sum = psd
                 psd3d_sum = psd3d
+                new = False
             else:
                 psd_sum += psd
                 psd3d_sum += psd3d
-            print(time_points[t])
-        self.PSD = psd_sum/time_points.shape[0]
-        self.PSD3D = psd3d_sum/time_points.shape[0]
-        self.all_PSD = np.array(all_PSD)
+            if self.time_points[t]%10000 == 0:
+                print(self.time_points[t])
+        self.PSD = (psd_sum/self.time_points.shape[0]).get()
+        self.PSD3D = psd3d_sum/self.time_points.shape[0]
+        self.all_PSD = np.array(all_PSD).get()
         print("Finish:", current_time - time.time())
+        cuda_mem()
     
     
     def import_psd(self, filename, path = global_path):
         self.PSD = np.load(path + filename)
         
-        
     def save_psd(self, filename, path = global_path):
         np.save(path + filename, self.PSD)
-        
+    
+    #To make the plots where frequencies are log-spaced. 
     def log_interp(self, array, n = 100):
         length = array.shape[0]
-        y = np.interp(np.logspace(0, np.log10(length), n), np.linspace(0, length-1, length), array)
+        y = numpy.interp(numpy.logspace(0, numpy.log10(length), n), numpy.linspace(0, length-1, length), array)
         return y
     #Default: psd = self.PSD
     def plot_log_spatial_psd(self, psd, n_temp_freqs):
-        alphas = np.linspace(0.2, 1, n_temp_freqs)
+        alphas = numpy.linspace(0.2, 1, n_temp_freqs)
         fig, ax = plt.subplots(1,1)
         lines = []
         colors = ['red', 'green', 'blue']
         #Need to remove last value because its out of bounds
         for c in range(3):
             index = 0
-            for i in np.linspace(0,self.PSD.shape[1],n_temp_freqs)[:-1]:
-                y = self.log_interp(self.PSD[c,int(i),:])
+            for i in numpy.linspace(0,self.PSD.shape[1],n_temp_freqs)[:-1]:
+                y = self.log_interp(self.PSD[:,int(i),c])
                 line, = plt.plot(y, label = str(int(i)),  alpha = alphas[index], color = colors[c])
                 lines.append(line)
                 index += 1
@@ -252,4 +302,11 @@ class PSD():
 
 #video_rgb = skimage.color.yuv2rgb(video_yuv)
 
-
+#Sample code:
+#hey = PSD("Nature1_lowres.mp4", 250, 100)
+#hey.average_TS_PSD()
+#plt.imshow(hey.PSD[:,:,0] - hey.PSD[:,:,2], origin = 'lower', cmap = 'PiYG')
+#plt.xlabel("Temporal frequency", size = 30)
+#plt.ylabel("Spatial frequency", size = 30)
+#plt.title("L - S channels", size = 30)
+#hey.plot_log_spatial_psd(hey.PSD3D, 10)
