@@ -172,23 +172,10 @@ class video_segment():
         power_space_bin = scipy.stats.binned_statistic(freqs_np, power_np, bins = n_bins)[0]
         return np.asarray(freqs_space_bin), np.asarray(power_space_bin)
     
-    def bin_psd(self, freqs, power, n_bins):
-        bins = numpy.linspace(np.min(freqs), np.max(freqs), n_bins)
-        digitized = np.digitize(freqs, bins)
-        #self.digitized = digitized #Remove this line later plz 
-        #print(power.shape, digitized.shape, self.f3D.shape)
-        bin_means = [power[digitized == i].reshape([self.psd3D.shape[0],self.n_colors, -1]).mean(axis=2) for i in range(1, len(bins)-1)] #I ran tests and this should be the right order
-        bin_means2 = []
-        for i in range(1, len(bins) - 1):
-            print(power.shape, digitized.shape)
-            mean = power[digitized == i].reshape([self.f3D.shape[0]*2 + 1,self.n_colors, -1]).mean(axis=2)
-            if not np.isnan(mean[0,0]):
-                bin_means2.append(mean)
-        return np.array(bin_means2)
     
     #For every temporal frequency, look at the 3D psd for that TF and compute the radial spatial frequencies. Then, bin those radial spatial frequencies in n_bins different bins of the same size. 
     #This returns the log10(STpsd)
-    def make_spatiotemporal_psd(self, n_bins, save_radial_freqs = False, min_freq = 10):
+    def make_spatiotemporal_psd(self, n_bins, save_radial_freqs = False, min_freq = 0):
         n_TFs = self.psd3D.shape[0]*2 + 1
 
         size = self.psd3D.shape[2]
@@ -294,9 +281,11 @@ class PSD():
         #self.PSD = (psd_sum/self.time_points.shape[0]).get()
         #self.PSD3D = psd3d_sum/self.time_points.shape[0]
         self.all_PSD = np.array(all_PSD).get()
-        Cx = (Cx_sum/self.time_points.shape[0]).get()
-        self.Cx = Cx
-        
+        Cx = (Cx_sum/self.time_points.shape[0])
+        self.Cx = Cx.get()
+        Cx_bin = bin_Cx(Cx,100)
+        self.Cx_bin = Cx_bin.get()
+        Cx = Cx_bin.get()
         
         n_space_freqs = Cx.shape[0]
         n_time_freqs = Cx.shape[1]
@@ -357,14 +346,64 @@ class PSD():
         plt.xlabel("Log(Spatial frequency)", size = 30)
         plt.ylabel("Log(Power)", size = 30)
         ax.legend(handles=lines, title = "Temporal frequency", fontsize = 20)
-    def plot_psd(self, to_plot, title = ""):
-        plt.figure()
-        minmax = np.max(np.array([abs(np.min(to_plot)), np.max(to_plot)]))
-        plt.imshow(to_plot, origin = 'lower', cmap = 'PiYG', vmin = -minmax, vmax = minmax)
-        plt.xlabel("Temporal frequency", size = 50)
-        plt.ylabel("Spatial frequency", size = 50)
-        plt.title(title, size = 50)
-        plt.colorbar()
+
+        
+def bin_psd(power, n_bins):
+    n_TFs = power.shape[0]
+    size = power.shape[-1]
+    freqs = np.fft.fftfreq(size)
+    n_colors = 3
+    y_freqs = np.repeat(np.repeat(np.repeat(freqs[np.newaxis,np.newaxis,:, np.newaxis], n_TFs, axis = 0), n_colors, axis = 1), freqs.shape[0], axis = 3)
+    x_freqs = np.repeat(np.repeat(np.repeat(freqs[np.newaxis,np.newaxis,np.newaxis,:], n_TFs, axis = 0), n_colors, axis = 1), freqs.shape[0], axis = 2)
+    
+    
+    freqs_space = np.sqrt(x_freqs**2 + y_freqs**2)
+    
+    bins = numpy.linspace(np.min(freqs_space), np.max(freqs_space), n_bins)
+    digitized = np.digitize(freqs_space, bins)
+
+    #bin_means = [power[digitized == i].reshape([self.psd3D.shape[0],self.n_colors, -1]).mean(axis=2) for i in range(1, len(bins)-1)] #I ran tests and this should be the right order
+    bin_means2 = []
+    for i in range(1, len(bins) - 1):
+        mean = power[digitized == i].reshape([n_TFs,n_colors, -1]).mean(axis=2)
+        if not np.isnan(mean[0,0]):
+            bin_means2.append(mean)
+    return np.array(bin_means2)
+
+def bin_Cx(Cx, n_bins):
+    n_TFs = Cx.shape[0]
+    size = Cx.shape[-1]
+    freqs = np.fft.fftfreq(size)
+    n_colors = 3
+    y_freqs = np.repeat(np.repeat(np.repeat(np.repeat(freqs[np.newaxis,np.newaxis, np.newaxis, :, np.newaxis], n_TFs, axis = 0), n_colors, axis = 1), n_colors, axis = 2), freqs.shape[0], axis = 4)
+    x_freqs = np.repeat(np.repeat(np.repeat(np.repeat(freqs[np.newaxis,np.newaxis,np.newaxis, np.newaxis, :], n_TFs, axis = 0), n_colors, axis = 1), n_colors, axis = 2), freqs.shape[0], axis = 3)
+    
+    
+    freqs_space = np.sqrt(x_freqs**2 + y_freqs**2)
+    
+    bins = numpy.linspace(np.min(freqs_space), np.max(freqs_space), n_bins)
+    digitized = np.digitize(freqs_space, bins)
+
+    #bin_means = [power[digitized == i].reshape([self.psd3D.shape[0],self.n_colors, -1]).mean(axis=2) for i in range(1, len(bins)-1)] #I ran tests and this should be the right order
+    bin_means = []
+    for i in range(1, len(bins) - 1):
+        mean = Cx[digitized == i].reshape([n_TFs,n_colors,n_colors, -1]).mean(axis=3)
+        if not np.isnan(mean[0,0,0]):
+            bin_means.append(mean.get())
+    return np.array(bin_means)
+
+def plot_psd(to_plot, title = "", divergent = True):
+    plt.figure()
+    minmax = numpy.max(np.array([abs(numpy.min(to_plot)), numpy.max(to_plot)]))
+    if divergent:
+        color_map = 'PiYG'
+    else:
+        color_map = 'Greens'
+    plt.imshow(to_plot, origin = 'lower', cmap = color_map, vmin = -minmax, vmax = minmax)
+    plt.xlabel("Temporal frequency", size = 50)
+    plt.ylabel("Spatial frequency", size = 50)
+    plt.title(title, size = 50)
+    plt.colorbar()
 
 #fig, ax = plt.subplots(1,3)
 #lms = ['L', 'M', 'S']
