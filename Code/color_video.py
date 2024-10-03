@@ -83,7 +83,7 @@ def load_video_segment(video_clip, frames):
     #frames_array = np.array(range(frames[0], frames[1]))
     for t in frames_array:
         video_segment.append(video_clip.get_frame(t/fps))
-    return np.array(video_segment)[:,100:200, 400:500,:]
+    return np.array(video_segment)[:,130:230, 270:370,:]
     #return np.array(video_segment)
 
 class video_segment():
@@ -101,7 +101,7 @@ class video_segment():
         self.n_colors = self.video_rgb.shape[3]
         for c in range(self.n_colors):
             video_lms[:,c,:,:] = (video_lms[:,c,:,:] - color_means[c])/color_stds[c]
-        self.video = video_lms + np.random.uniform(-0.1,0.1, size = video_lms.shape)
+        self.video = video_lms 
         
         
     def linearize_adobergb(self):
@@ -392,18 +392,76 @@ def bin_Cx(Cx, n_bins):
             bin_means.append(mean.get())
     return np.array(bin_means)
 
-def plot_psd(to_plot, title = "", divergent = True):
-    plt.figure()
-    minmax = numpy.max(np.array([abs(numpy.min(to_plot)), numpy.max(to_plot)]))
+def plot_psd(to_plot, axis = None, title = "", divergent = False, v = None):
+    colorbar = False
+    if axis is None:
+        fig, axis = plt.subplots(1,1)
+        colorbar = True
+
+    if v is None:
+        vmax = numpy.max(np.array([abs(numpy.min(to_plot)), numpy.max(to_plot)]))
+    else:
+        vmax = v
     if divergent:
         color_map = 'PiYG'
+        vmin = vmax*-1
     else:
-        color_map = 'Greens'
-    plt.imshow(to_plot, origin = 'lower', cmap = color_map, vmin = -minmax, vmax = minmax)
-    plt.xlabel("Temporal frequency", size = 50)
-    plt.ylabel("Spatial frequency", size = 50)
-    plt.title(title, size = 50)
-    plt.colorbar()
+        color_map = 'YlOrRd'
+        vmin = 0
+    
+    s = axis.imshow(to_plot, origin = 'lower', cmap = color_map, vmin = vmin, vmax = vmax)
+    #axis.contour(to_plot, origin = 'lower', color = 'black', alpha = 1, linewidths = 3)
+
+    if colorbar:
+        cbar = fig.colorbar(s)
+        cbar.ax.tick_params(labelsize=50)
+        axis.set_xlabel("Temporal frequency", size = 50)
+        axis.set_ylabel("Spatial frequency", size = 50)
+        axis.set_title(title, size = 50)
+    
+    axis.set_xticks([])
+    axis.set_yticks([])
+
+def plot_psd_cov(to_plot):
+    #last two dimensions define subplot size
+    n_rows = to_plot.shape[2]
+    n_cols = to_plot.shape[3]
+    
+    if n_cols != n_rows:
+        raise Exception("Last two dimensions are not the same")
+    fig, ax = plt.subplots(n_rows,n_cols, constrained_layout=True)
+    #plt.get_current_fig_manager().window.showMaximized()
+    
+    
+    for j in range(n_cols):
+        for i in range(n_rows):
+            if i <= j:
+                plot_psd(to_plot[:,:,i,j], axis = ax[i,j])
+            else:
+                ax[i,j].set_visible(False)
+    fig.tight_layout()
+    
+    
+
+def plot_eig_diff(to_plot):
+    #last two dimensions define subplot size
+    n_eig = to_plot.shape[2]
+    
+    fig, ax = plt.subplots(n_eig,n_eig, constrained_layout=True)
+    
+    
+    for i in range(n_eig):
+        for j in range(n_eig):
+            if i == j:
+                plot_psd(to_plot[:,:,i], axis = ax[i,j])
+            elif i > j:
+                plot_psd(to_plot[:,:,j] - to_plot[:,:,i], axis = ax[i,j])
+            else:   
+                ax[i,j].set_visible(False)
+    fig.tight_layout()
+        
+            
+        
 
 #fig, ax = plt.subplots(1,3)
 #lms = ['L', 'M', 'S']

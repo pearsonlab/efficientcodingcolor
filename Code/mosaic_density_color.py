@@ -35,7 +35,7 @@ dz = zz[1] - zz[0]
 
 sigin = 0.4
 sigout = 1.25
-A = np.array([3,2,1])
+A = 3
 #A = 100
 
 alpha = 1.3
@@ -48,7 +48,7 @@ def soft_bandpass(lo, hi, freqs, stiffness=10):
 
 #Create Cx assuming the structure of spatiotemporal PSD
 def C(k):
-    return A/(np.abs(k)**alpha)
+    return np.repeat((A/(np.abs(k)**alpha))[:, np.newaxis], 3, 1)
 
 #This is formula 10 from the NeurIPS paper. Computes the optimal solution, but requires knowing nu
 def filter(A_all, sigin, sigout, nu, k_lims=None, o_lims=None):
@@ -119,7 +119,7 @@ con = lambda B: np.sum((np.matmul(B, np.transpose(B)) - np.diag([1,1,1]))**2)
 cons = {'type':'eq', 'fun': con}
 #con2 = scipy.optimize.LinearConstraint(con, 0, 0)
 
-hey = scipy.optimize.minimize(v2_color_func, x0 = B_init, constraints=cons)
+#hey = scipy.optimize.minimize(v2_color_func, x0 = B_init, constraints=cons)
 
 #Check euler angles  for orthogonal matrices 
 #Package Cvx if the problem is convex. Can specify matrix form 
