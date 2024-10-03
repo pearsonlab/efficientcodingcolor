@@ -1,2 +1,0 @@
-- Check if W is still normalized with parametrized model
-- h_exp was set to 0 with Lagrange multiplier. That could explain why it didn't work as expected 

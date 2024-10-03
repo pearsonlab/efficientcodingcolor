@@ -1,0 +1,22 @@
+name: reteffcod
+channels:
+  - defaults
+dependencies:
+  - seaborn
+  - spyder
+  - bokeh
+  - tensorboard
+  - pip
+  - anaconda::sympy
+  - ipywidgets
+  - pyqtwebengine
+  - tk
+  - opencv
+  - pandas
+  - python
+  - tqdm
+  - pyqt
+  - git
+  - scipy
+  - scikit-learn
+prefix: /home/david/anaconda3/envs/reteffcod

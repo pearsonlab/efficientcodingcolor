@@ -7,6 +7,18 @@ Created on Tue Jun 20 22:45:40 2023
 import numpy as np
 import os
 import torch
+from data import KyotoNaturalImages
+from torch.utils.data import DataLoader
+from util import cycle
+
+def get_samples(kernel_size, n_colors, normalize_color, remove_mean = False, whiten_pca = None):
+    img_full = KyotoNaturalImages('kyoto_natim', kernel_size,True, 'cpu', n_colors, 'True', remove_mean = remove_mean, normalize_color = normalize_color)
+    if whiten_pca is not None:
+        img_full.pca_color()
+        img_full.whiten_pca(whiten_pca)
+    
+    load = next(cycle(DataLoader(img_full, 100000))).to('cpu')
+    return load
 
 def find_last_cp(path):
     all_files = np.array(os.listdir(path))

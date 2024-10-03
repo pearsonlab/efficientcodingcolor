@@ -1,4 +1,0 @@
-- John: Looks that black in MI_denominator are actually 0. 
-- Need to understand why the covariance matrices are so weird. 
-
-**** Send link of Github repo on slack 

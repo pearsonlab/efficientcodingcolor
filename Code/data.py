@@ -46,19 +46,30 @@ class KyotoNaturalImages(Dataset):
     either 500x640 or 640x500 size, from which a rectangular patch is randomly extracted.
     """
 
-    def __init__(self, root, kernel_size, circle_masking, device, n_colors, restriction = 'True', remove_mean = False):
+    def __init__(self, root, kernel_size, circle_masking, device, n_colors, normalize_color, restriction = 'True', remove_mean = False):
         #root = 'kyoto_natim'
         #device = 'cuda'
+        print('root', root)
         files = [mat for mat in os.listdir(root) if mat.endswith('.mat')]
         print("Loading {} images from {} ...".format(len(files), root))
         self.n_colors = n_colors
+        self.normalize_color = normalize_color
+        self.circle_masking = circle_masking
+        self.remove_mean = remove_mean
         images = []
+        L_means = 0
+        L_stds = 0
+        M_means = 0
+        M_stds = 0
+        S_means = 0
+        S_stds = 0
+        
         for file in tqdm(files):
             if file.endswith('.mat'):
                 #David: Combined the responses from the three different cones into a single image array
-                imageOM = loadmat(os.path.join(root, file))['OM'].astype(np.float)
-                imageOS = loadmat(os.path.join(root, file))['OS'].astype(np.float)
-                imageOL = loadmat(os.path.join(root, file))['OL'].astype(np.float)
+                imageOM = loadmat(os.path.join(root, file))['OM'].astype(np.float64)
+                imageOS = loadmat(os.path.join(root, file))['OS'].astype(np.float64)
+                imageOL = loadmat(os.path.join(root, file))['OL'].astype(np.float64)
                 
                 #Inhibition from an "horizontal" cell to reduce MI between M and S cones. 
                 #MS_tot = imageOM + imageOS
@@ -66,7 +77,8 @@ class KyotoNaturalImages(Dataset):
                 #imageOS = imageOS - 0.38*MS_tot
                 
                 pca_comps = get_matrix('pca_comps')
-
+                fake_channel = np.random.normal(loc = 0, scale = 0.01, size=imageOL.shape)
+                
                 if n_colors == 1:
                     image = imageOM
                 if n_colors == 2:
@@ -78,30 +90,68 @@ class KyotoNaturalImages(Dataset):
                 #image = np.tensordot(pca_comps, image, axes = 1)
                 
             else:
-                image = np.array(Image.open(os.path.join(root, file)).convert('L')).astype(np.float)
+                image = np.array(Image.open(os.path.join(root, file)).convert('L')).astype(np.float64)
                 
             std = np.std(image)
             if std < 1e-4: #This line never gets called 
                 continue
-            #L_mean = np.mean(image[0,:,:])
-            #L_std = np.std(image[0,:,:])
-            #S_mean = np.mean(image[1,:,:])
-            #S_std = np.std(image[1,:,:])
             
-            #image[0,:,:] -= L_mean
-            #image[0,:,:] /= L_std
-            #image[1,:,:] -= S_mean
-            #image[1,:,:] /= S_std
+            L_mean = np.mean(image[0,:,:])
+            L_std = np.std(image[0,:,:])
+            M_mean = np.mean(image[1,:,:])
+            M_std = np.std(image[1,:,:])
+            
+            
+            if image.shape[0] > 2:
+                S_mean = np.mean(image[2,:,:])
+                S_std = np.std(image[2,:,:])
+                S_means += S_mean
+                S_stds += S_std
+                if normalize_color:
+                    image[2,:,:] -= S_mean
+                    image[2,:,:] /= S_std
+                    
+            if normalize_color:
+                image[0,:,:] -= L_mean
+                image[0,:,:] /= L_std
+                image[1,:,:] -= M_mean
+                image[1,:,:] /= M_std
+            else:
+                image -= np.mean(image)
+                image /= std
+                
+                 
+            L_means += L_mean
+            L_stds += L_std
+            M_means += M_mean
+            M_stds += M_std
+            
+                
+
+            
             
             #print('start', np.mean(image), np.std(image), image.shape, np.mean(image[0,:,:]), np.mean(image[1,:,:]), np.std(image[0,:,:]), np.std(image[1,:,:]))
             
             #Uncomment these lines when you're done plz
-            image -= np.mean(image)
-            image /= std
+
             
             
             
             images.append(torch.from_numpy(image).to(device))
+        L_means /= len(images)
+        M_means /= len(images)
+        S_means /= len(images)
+        L_stds /= len(images)
+        M_stds /= len(images)
+        S_stds /= len(images)
+        
+        #for i in range(len(images)):
+         #   images[i][0,:,:] -= L_means
+          #  images[i][1,:,:] -= M_means
+           # images[i][2,:,:] -= S_means
+           # images[i][0,:,:] /= L_stds
+           # images[i][1,:,:] /= M_stds
+           # images[i][2,:,:] /= S_stds
             
         self.device = device
         self.images = images
@@ -130,12 +180,13 @@ class KyotoNaturalImages(Dataset):
             condition = eval(self.restriction)       
             if condition:
                 if self.remove_mean:
-                    result = result - torch.mean(result)
-                    
+                    for i in range(result.shape[0]):
+                        result[i,:,:] = result[i,:,:] - torch.mean(result[i,:,:])
                 return result.float()
 
     def covariance(self, num_samples: int = 100000, device: Union[str, torch.device] = None, index=0):
-        return estimated_covariance(self, num_samples, device, index)
+        self.cov = estimated_covariance(self, num_samples, index)
+        return self.cov
     
     def pca_color(self):
         self.n_images = len(self.images)
@@ -149,7 +200,7 @@ class KyotoNaturalImages(Dataset):
                 images_reshaped = np.zeros([self.n_colors, stack_length])
             images_reshaped[n_color,:] = color
         self.flat = np.transpose(images_reshaped)
-        pca = PCA(n_components = 3)
+        pca = PCA(n_components = self.n_colors)
         pca.fit(self.flat)
         self.pca = pca
         self.comps = pca.components_
@@ -165,15 +216,18 @@ class KyotoNaturalImages(Dataset):
                 image_flat = torch.reshape(image, [self.n_colors, image.shape[1]*image.shape[2]])
                 pcs = self.pca.fit_transform(np.transpose(image_flat.detach().cpu().numpy()))
                 var = self.pca.explained_variance_
-                A1 = np.sqrt(ratio[0]/var[0]); A2 = np.sqrt(ratio[1]/var[1]); A3 = np.sqrt(ratio[2]/var[2])
-                A = np.diag([A1,A2,A3])
+                A = []
+                for i in range(self.n_colors):
+                    A.append(np.sqrt(ratio[i]/var[i]))
+                A = np.diag(A)
                 #A = np.diag([1,1,1])
                 image_whiten = np.matmul(np.matmul(np.transpose(self.pca.components_), A), np.transpose(pcs))
+            
             image = np.reshape(image_whiten, image.shape)
             #std = np.std(image)
             #image -= np.mean(image)
             #image /= std
-            self.images[image_index] = torch.tensor(image, device = 'cuda:0')
+            self.images[image_index] = torch.tensor(image, device = self.device)
             image_index = image_index + 1
             
             

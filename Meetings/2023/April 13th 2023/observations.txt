@@ -1,3 +1,0 @@
-Red and Green have very little variance in image, practically all of the variance in colors is due to variations in blue. 
-This doesn't happen as much with the LMS cones, even though S still has 50% more var than the others. 
-

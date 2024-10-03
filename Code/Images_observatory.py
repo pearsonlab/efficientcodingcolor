@@ -20,9 +20,48 @@ path = "../../saves/" + save + "/"
 #test = Analysis(path)
 #test.get_images()
 
-img_full = KyotoNaturalImages('kyoto_natim', 18,True, 'cpu', 2, 'True', False)
+def get_samples(kernel_size, n_colors = 3):
+    img_full = KyotoNaturalImages('kyoto_natim', kernel_size, circle_masking = True, device = 'cpu',n_colors =  n_colors, normalize_color = True, restriction = 'True', remove_mean = False)
+    load = next(cycle(DataLoader(img_full, 100000))).to('cpu')
+    return load
+load = get_samples(100)
 
-load = next(cycle(DataLoader(img_full, 100000))).to('cpu')
+def make_psd_1D(psd_2D, plot):
+    fig, ax = plt.subplots(1)
+    lms = ['L', 'M', 'S']
+    rgb = ['r', 'g', 'b']
+    jitter = [0,0.003,0]
+    size = psd_2D.shape[1]
+    lines = []
+    for c in range(psd_2D.shape[0]):
+        freqs_norm = []
+        power = []
+        freqs = np.fft.fftfreq(size)
+        for i in range(int(size/2)):
+            for j in range(int(size/2)):
+                freqs_norm.append(np.sqrt(freqs[i]**2 + freqs[j]**2))
+                power.append(psd_2D[c, i, j])
+        log_freqs = np.log10(freqs_norm)
+        log_power = np.log10(power)
+        line, = ax.plot(log_freqs + jitter[c], log_power, label = lms[c], color = rgb[c], alpha = 0.5)
+        lines.append(line)
+    ax.set_xlabel("log10(Frequency norm)", size = 30)
+    ax.set_ylabel("log10(power)", size = 30)
+    ax.legend(handles = lines, fontsize = 50)
+    return log_freqs, log_power 
+#f = np.fft.fft2(load)
+#f1 = np.fft.fft2(load[:,0,:,:] - load[:,1,:,:])
+#f2 = np.fft.fft2(load[:,2,:,:] - (load[:,0,:,:] + load[:,1,:,:])/2)
+f1 = np.fft.fft2(load[:,0,:,:]) 
+f2 = np.fft.fft2(load[:,1,:,:]) 
+f3 = np.fft.fft2(load[:,2,:,:]) 
+f = np.stack([f1,f2,f3], axis = 1)
+psd_pre = abs(f)**2
+psd_2D = np.mean(psd_pre, axis = 0)
+make_psd_1D(psd_2D, True)
+
+
+
 #load = flip_images(load,0.5, 'cpu')
 plt.figure()
 

@@ -1,8 +1,0 @@
-Conclusions from today:
-1. Low var patches are either sky (tends to be +) or bushes (tends to be -)
-2. S channel has more amplitude in + low var, and also somewhat in - low var(?).
-3. Stronger effect: L channel has more amplitude in high var images, especially
-negative ones!
-
-4. -L mosaic has more MI in high var than low var images. 
-5. S has more MI in low var images, but its much less of a strong effect
