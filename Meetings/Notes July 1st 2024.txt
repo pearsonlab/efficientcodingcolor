@@ -1,0 +1,18 @@
+Need to change RF size when the mosaic is denser.
+
+Contextualize the difference between optimal model
+and biology in an information change. 
+
+Model bistratified cells by having gaussian center in one
+channel and the gaussian surround in the other channel. 
+
+Priority: Run code where you can fix some parameters and not
+others. 
+Start with a 2-point comparison without doing the 
+optimization first. 
+
+Silent substitution literature. How you make an L cone isolating
+stimulus. 
+
+*** Write out rational of why I decide to do X or Y.
+Very important to take notes.  

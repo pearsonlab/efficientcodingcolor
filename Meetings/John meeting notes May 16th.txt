@@ -1,0 +1,17 @@
+** Figure out why adding gain parameter reduces MI drasticallyjjjjj
+
+Calculate correlations of firing rates
+between one mosaic and another. 
+
+Get correlation matrix 300x300
+Look at how those values change as a function of distance
+Make one plot like this for every pair of mosaic. 
+
+
+** Try to figure out why firing rates
+go up when I flip one channel. That makes no sense. 
+
+
+* Do a 80/20 split with two channels. 
+Show images. Look at what images look like when I zero M channel
+

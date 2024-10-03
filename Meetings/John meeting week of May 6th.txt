@@ -1,8 +1,0 @@
-- John: Add a fake channel so we can rotate the channels
-and have an extra degree of freedom. 
-Just add random noise in the third channel. 
-
-Idea: Add new gain for each channel (and get rid of d, or vice-versa) 
-
-Read section 2.5 in that paper John just sent you.
-The MI paper. 
