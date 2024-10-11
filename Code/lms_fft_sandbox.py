@@ -48,10 +48,19 @@ def optim_filter(eig, nu, output_noise):
 alpha = 1.3
 A = 100
 input_noise = 0.4
+<<<<<<< Updated upstream
 k_f = (A/input_noise**2 * omega**2)**(1/alpha)
 
 
 def k_tilda(k):
+=======
+
+def _kf(A, input_noise, omega, alpha):
+    k_f = (A/input_noise**2 * omega**2)**(1/alpha)
+    return k_f
+
+def k_tilda(k, k_f):
+>>>>>>> Stashed changes
     return (k/k_f)**alpha
 
 

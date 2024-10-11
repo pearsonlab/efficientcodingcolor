@@ -7,7 +7,11 @@ Created on Tue Jul  2 14:59:38 2024
 """
 
 import os
+#<<<<<<< Updated upstream
 import sys
+#=======
+os.environ["IMAGEIO_FFMPEG_EXE"] = "/usr/bin/ffmpeg"
+#>>>>>>> Stashed changes
 import skvideo
 import skvideo.io
 import cupy as np
@@ -137,12 +141,18 @@ class video_segment():
 
         f3D = np.fft.fftn(self.video, axes = (0,2,3))
         psd3D = abs(f3D)**2
+#<<<<<<< Updated upstream
         f3D_real = f3D[0:real_temporal_freqs, :, 0:real_spatial_freqs, 0:real_spatial_freqs]
         #Cx = np.einsum('ijkl,ajkl->iajkl', f3D_real, f3D_real)
         
         #self.f3D = abs(f3D_real)
         self.f3D = f3D
         
+#=======
+        f3D_real = np.swapaxes(f3D[0:real_temporal_freqs, :, 0:real_spatial_freqs, 0:real_spatial_freqs], 0, 1)
+        Cx = np.tensordot(f3D_real.T, f3D_real, axis = 3)
+        print(Cx.shape)
+#>>>>>>> Stashed changes
         self.psd3D = psd3D[0:real_temporal_freqs, :, 0:real_spatial_freqs, 0:real_spatial_freqs]
         
     def make_Cx(self):
@@ -162,6 +172,7 @@ class video_segment():
                 freqs_norm.append(np.sqrt(freqs[i]**2 + freqs[j]**2))
                 power.append(space_psd[i, j])
         return freqs_norm, power
+    
     
     #Takes as input 1D arrays that represent frequencies (output of radial_space_freq), power and n_bins. Default is 10. 
     def bin_1D_psd_old(self, freqs, power, n_bins):
@@ -203,7 +214,6 @@ class video_segment():
         #self.STpsd_test = np.log10(power_bin2)
         #self.Cx = np.log10(Cx)
         self.Cx = Cx
-
 
 class PSD():
     #Frames is an array with 2 values: [frame_min, frame_max]
