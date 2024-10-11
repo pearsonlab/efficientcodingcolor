@@ -40,7 +40,7 @@ import torch.nn.functional as F
 
 
 run_code = True
-save = '240301-055438'
+save = '240614-003858'
 #save = "artificial_mosaics/Artificial1"
 path = "../../saves/"
 epoch = None
