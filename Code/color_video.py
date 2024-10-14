@@ -10,12 +10,13 @@ import os
 #<<<<<<< Updated upstream
 import sys
 #=======
-os.environ["IMAGEIO_FFMPEG_EXE"] = "/usr/bin/ffmpeg"
+#os.environ["IMAGEIO_FFMPEG_EXE"] = "/usr/bin/ffmpeg" #This snippet can make it so MoviePy cannot find videos!!!
 #>>>>>>> Stashed changes
 import skvideo
 import skvideo.io
 import cupy as np
 import numpy
+import pickle
 numpy.float_ = numpy.float64
 import matplotlib.pyplot as plt
 import scipy
@@ -142,17 +143,11 @@ class video_segment():
         f3D = np.fft.fftn(self.video, axes = (0,2,3))
         psd3D = abs(f3D)**2
 #<<<<<<< Updated upstream
-        f3D_real = f3D[0:real_temporal_freqs, :, 0:real_spatial_freqs, 0:real_spatial_freqs]
+        #f3D_real = f3D[0:real_temporal_freqs, :, 0:real_spatial_freqs, 0:real_spatial_freqs]
         #Cx = np.einsum('ijkl,ajkl->iajkl', f3D_real, f3D_real)
         
         #self.f3D = abs(f3D_real)
         self.f3D = f3D
-        
-#=======
-        f3D_real = np.swapaxes(f3D[0:real_temporal_freqs, :, 0:real_spatial_freqs, 0:real_spatial_freqs], 0, 1)
-        Cx = np.tensordot(f3D_real.T, f3D_real, axis = 3)
-        print(Cx.shape)
-#>>>>>>> Stashed changes
         self.psd3D = psd3D[0:real_temporal_freqs, :, 0:real_spatial_freqs, 0:real_spatial_freqs]
         
     def make_Cx(self):
@@ -221,7 +216,10 @@ class PSD():
         
         self.color_means = np.array([0,0,0])
         self.color_stds = np.array([1,1,1])
-        self.video_clip = moviepy.editor.VideoFileClip(path + video_name)
+        try:
+            self.video_clip = moviepy.editor.VideoFileClip(path + video_name)
+        except FileNotFoundError:
+            print("Could not find file " + path + video_name)
         if frames is None:
             self.max_frame = int(self.video_clip.duration*self.video_clip.fps)
             self.min_frame = 0
@@ -470,7 +468,16 @@ def plot_eig_diff(to_plot):
                 ax[i,j].set_visible(False)
     fig.tight_layout()
         
+class save_params():
+        def __init__(self, params):
+            self.Cx = params.Cx
+            self.Cx_bin = params.Cx_bin
+            self.Cx_eigvals = params.Cx_eigvals
+            self.Cx_eigvects = params.Cx_eigvects
             
+        def save(self, path):
+            with open(global_path + 'Cx.pkl', 'wb') as outp:
+                pickle.dump(self, outp)
         
 
 #fig, ax = plt.subplots(1,3)
@@ -493,8 +500,7 @@ def plot_eig_diff(to_plot):
 #video_rgb = skimage.color.yuv2rgb(video_yuv)
 
 #Sample code:
-#hey = PSD("Nature1_lowres.mp4", 250, 100)
-#hey.average_TS_PSD()
+#hey = PSD("Nature1_lowres.mp4", 250, 100); hey.average_TS_PSD()
 
 
 #hey.plot_log_spatial_psd(hey.PSD3D, 10)
