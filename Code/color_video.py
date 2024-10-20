@@ -354,6 +354,7 @@ class PSD():
         plt.xlabel("Log(Spatial frequency)", size = 30)
         plt.ylabel("Log(Power)", size = 30)
         ax.legend(handles=lines, title = "Temporal frequency", fontsize = 20)
+    
 
         
 def bin_psd(power, n_bins):
@@ -467,18 +468,13 @@ def plot_eig_diff(to_plot):
             else:   
                 ax[i,j].set_visible(False)
     fig.tight_layout()
+
+def save_params(params):
+    this_dict = {'Cx': params.Cx, 'Cx_bin': params.Cx_bin, 'Cx_eigvals':params.Cx_eigvals, 'Cx_eigvects': params.Cx_eigvects}
+    with open(global_path + '/../Cx.pkl', 'wb') as outp:
+        pickle.dump(this_dict, outp)
         
-class save_params():
-        def __init__(self, params):
-            self.Cx = params.Cx
-            self.Cx_bin = params.Cx_bin
-            self.Cx_eigvals = params.Cx_eigvals
-            self.Cx_eigvects = params.Cx_eigvects
-            
-        def save(self, path):
-            with open(global_path + 'Cx.pkl', 'wb') as outp:
-                pickle.dump(self, outp)
-        
+
 
 #fig, ax = plt.subplots(1,3)
 #lms = ['L', 'M', 'S']
