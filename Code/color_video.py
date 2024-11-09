@@ -7,11 +7,16 @@ Created on Tue Jul  2 14:59:38 2024
 """
 
 import os
+#<<<<<<< Updated upstream
 import sys
+#=======
+#os.environ["IMAGEIO_FFMPEG_EXE"] = "/usr/bin/ffmpeg" #This snippet can make it so MoviePy cannot find videos!!!
+#>>>>>>> Stashed changes
 import skvideo
 import skvideo.io
 import cupy as np
 import numpy
+import pickle
 numpy.float_ = numpy.float64
 import matplotlib.pyplot as plt
 import scipy
@@ -137,12 +142,12 @@ class video_segment():
 
         f3D = np.fft.fftn(self.video, axes = (0,2,3))
         psd3D = abs(f3D)**2
-        f3D_real = f3D[0:real_temporal_freqs, :, 0:real_spatial_freqs, 0:real_spatial_freqs]
+#<<<<<<< Updated upstream
+        #f3D_real = f3D[0:real_temporal_freqs, :, 0:real_spatial_freqs, 0:real_spatial_freqs]
         #Cx = np.einsum('ijkl,ajkl->iajkl', f3D_real, f3D_real)
         
         #self.f3D = abs(f3D_real)
         self.f3D = f3D
-        
         self.psd3D = psd3D[0:real_temporal_freqs, :, 0:real_spatial_freqs, 0:real_spatial_freqs]
         
     def make_Cx(self):
@@ -162,6 +167,7 @@ class video_segment():
                 freqs_norm.append(np.sqrt(freqs[i]**2 + freqs[j]**2))
                 power.append(space_psd[i, j])
         return freqs_norm, power
+    
     
     #Takes as input 1D arrays that represent frequencies (output of radial_space_freq), power and n_bins. Default is 10. 
     def bin_1D_psd_old(self, freqs, power, n_bins):
@@ -204,14 +210,16 @@ class video_segment():
         #self.Cx = np.log10(Cx)
         self.Cx = Cx
 
-
 class PSD():
     #Frames is an array with 2 values: [frame_min, frame_max]
     def __init__(self, video_name, time_bins, n_spatial_bins, frames = None, path = global_path, means = None):
         
         self.color_means = np.array([0,0,0])
         self.color_stds = np.array([1,1,1])
-        self.video_clip = moviepy.editor.VideoFileClip(path + video_name)
+        try:
+            self.video_clip = moviepy.editor.VideoFileClip(path + video_name)
+        except FileNotFoundError:
+            print("Could not find file " + path + video_name)
         if frames is None:
             self.max_frame = int(self.video_clip.duration*self.video_clip.fps)
             self.min_frame = 0
@@ -346,6 +354,7 @@ class PSD():
         plt.xlabel("Log(Spatial frequency)", size = 30)
         plt.ylabel("Log(Power)", size = 30)
         ax.legend(handles=lines, title = "Temporal frequency", fontsize = 20)
+    
 
         
 def bin_psd(power, n_bins):
@@ -459,9 +468,13 @@ def plot_eig_diff(to_plot):
             else:   
                 ax[i,j].set_visible(False)
     fig.tight_layout()
+
+def save_params(params):
+    this_dict = {'Cx': params.Cx, 'Cx_bin': params.Cx_bin, 'Cx_eigvals':params.Cx_eigvals, 'Cx_eigvects': params.Cx_eigvects}
+    with open(global_path + '/../Cx.pkl', 'wb') as outp:
+        pickle.dump(this_dict, outp)
         
-            
-        
+
 
 #fig, ax = plt.subplots(1,3)
 #lms = ['L', 'M', 'S']
@@ -483,8 +496,7 @@ def plot_eig_diff(to_plot):
 #video_rgb = skimage.color.yuv2rgb(video_yuv)
 
 #Sample code:
-#hey = PSD("Nature1_lowres.mp4", 250, 100)
-#hey.average_TS_PSD()
+#hey = PSD("Nature1_lowres.mp4", 250, 100); hey.average_TS_PSD()
 
 
 #hey.plot_log_spatial_psd(hey.PSD3D, 10)

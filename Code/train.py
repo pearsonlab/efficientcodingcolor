@@ -297,9 +297,9 @@ def train(logdir: str = datetime.now().strftime(f"{gettempdir()}/%y%m%d-%H%M%S")
                     if hasattr(model.encoder.shape_function, "b"):
                         writer.add_histogram("histogram/diffgaussian_b", model.encoder.shape_function.b, iteration, bins=100)
                     if hasattr(model.encoder.shape_function, "c"):
-                        writer.add_histogram("histogram/diffgaussian_c", model.encoder.shape_function.a, iteration, bins=100)
+                        writer.add_histogram("histogram/diffgaussian_c", model.encoder.shape_function.c, iteration, bins=100)
                     if hasattr(model.encoder.shape_function, "d"):
-                        writer.add_histogram("histogram/diffgaussian_d", model.encoder.shape_function.a, iteration, bins=100)
+                        writer.add_histogram("histogram/diffgaussian_d", model.encoder.shape_function.d, iteration, bins=100)
             
             if iteration % 1000 == 0:
                 to_ignore = ["data_covariance", "sigma_prime"]
