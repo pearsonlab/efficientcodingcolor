@@ -1,8 +1,0 @@
-DOCUMENT EVERYTHING
-
-
-The 2D power spectrum artifact  
-is mostlst y due to patch size. It should reduce as patch size
-is larger. 
-
-I could use the Chicago dataset as a check.  
