@@ -1,0 +1,24 @@
+Make sure I understand what question they are asking:
+"I think the answer you're asking is..."
+
+"I don't know the answer to that question, but here's a
+related one". 
+
+John: (r-1)^2
+
+There are multipler drivers of differente cell types
+One possibility is EC, has some applicability about retina/sensory, maybe less for other parts of brain
+
+John: What does EC hae to do with cell types? slide title 
+
+Previous student did this on static chromatic, we only got
+2 cell tyopes
+When she did that with time, the more neurons the model,
+the more cell types emerges 
+
+Hypothesis: If you go to color, you'll see a simpler
+effect with chromatic cell types 
+
+Approach:
+What is the model, what am I going to do,
+what do I expect to happen, what do I do if that goes wrong 

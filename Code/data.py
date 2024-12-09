@@ -95,21 +95,21 @@ class KyotoNaturalImages(Dataset):
             std = np.std(image)
             if std < 1e-4: #This line never gets called 
                 continue
+            if n_colors > 1:
+                L_mean = np.mean(image[0,:,:])
+                L_std = np.std(image[0,:,:])
+                M_mean = np.mean(image[1,:,:])
+                M_std = np.std(image[1,:,:])
             
-            L_mean = np.mean(image[0,:,:])
-            L_std = np.std(image[0,:,:])
-            M_mean = np.mean(image[1,:,:])
-            M_std = np.std(image[1,:,:])
             
-            
-            if image.shape[0] > 2:
-                S_mean = np.mean(image[2,:,:])
-                S_std = np.std(image[2,:,:])
-                S_means += S_mean
-                S_stds += S_std
-                if normalize_color:
-                    image[2,:,:] -= S_mean
-                    image[2,:,:] /= S_std
+                if image.shape[0] > 2:
+                    S_mean = np.mean(image[2,:,:])
+                    S_std = np.std(image[2,:,:])
+                    S_means += S_mean
+                    S_stds += S_std
+                    if normalize_color:
+                        image[2,:,:] -= S_mean
+                        image[2,:,:] /= S_std
                     
             if normalize_color:
                 image[0,:,:] -= L_mean
@@ -120,12 +120,12 @@ class KyotoNaturalImages(Dataset):
                 image -= np.mean(image)
                 image /= std
                 
-                 
-            L_means += L_mean
-            L_stds += L_std
-            M_means += M_mean
-            M_stds += M_std
-            
+            if n_colors > 1:     
+                L_means += L_mean
+                L_stds += L_std
+                M_means += M_mean
+                M_stds += M_std
+                
                 
 
             
@@ -138,12 +138,13 @@ class KyotoNaturalImages(Dataset):
             
             
             images.append(torch.from_numpy(image).to(device))
-        L_means /= len(images)
-        M_means /= len(images)
-        S_means /= len(images)
-        L_stds /= len(images)
-        M_stds /= len(images)
-        S_stds /= len(images)
+        if n_colors > 1:
+            L_means /= len(images)
+            M_means /= len(images)
+            S_means /= len(images)
+            L_stds /= len(images)
+            M_stds /= len(images)
+            S_stds /= len(images)
         
         #for i in range(len(images)):
          #   images[i][0,:,:] -= L_means
