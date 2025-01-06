@@ -23,11 +23,28 @@ def soft_bandpass(lo, hi, freqs, stiffness=10):
     else:
         return scipy.special.expit(stiffness * (freqs - lo)) * scipy.special.expit(stiffness * (hi - freqs))
 
-
 def import_C():
     with open(os.getcwd() + "/../../Cx.pkl", 'rb') as f:
         x = pickle.load(f)
     return x
+
+def pad_and_reflect(fil, N, padval=0):
+    """
+    Zero-pad to length N//2 and reflect about origin to make length N. 
+    """
+    expanded = np.pad(fil, (0, N//2 + 1 - len(fil)), constant_values=(0, padval))
+    return np.concatenate([expanded[::-1], expanded[1:]])
+
+def extrap_and_reflect(fil, N, return_log=False):
+    """
+    Linearly extrapolate the log filter to better approximate tails and reflect 
+    about origin to make length N.
+    """
+    extrap_fun = interp1d(range(0, len(fil)), np.maximum(-32, np.log(fil)), fill_value='extrapolate')
+    expanded = extrap_fun(range(0, N//2 + 1))
+    if not return_log:
+        expanded = np.exp(expanded)
+    return np.concatenate([expanded[::-1], expanded[1:]])
 
 class covariance():
     def __init__(self):
@@ -87,7 +104,7 @@ class model():
                 elif self.fixed_type == 'temporal':
                     #ktilde = 1/Cx[:,int(fixed_freq), i]
                     ktilde = 1/C.interpolate(self.freqs, self.fixed_freq, i, self.scaling)
-                ktilde = self.pad_and_reflect(ktilde[:,0],ktilde.shape[0]*2 - 2)
+                ktilde = pad_and_reflect(ktilde[:,0],ktilde.shape[0]*2 - 2)
                 #numer = np.maximum(0, sigout**2 /(2 * (ktilde + 1e-32)) * (np.sqrt(1 + 4 * ktilde/(eps_eigenchannel * sigout**2)) - 1) - sigout**2) + sigout**2
                 #denom = np.maximum(0, sigout**2 /(2 * (ktilde + 1)) * (np.sqrt(1 + 4 * ktilde/(eps_eigenchannel * sigout**2)) + 1) - sigout**2) + sigout**2
     
@@ -111,7 +128,7 @@ class model():
             elif self.fixed_type == 'temporal':
                 inter = np.clip(C.interpolate(indices, self.fixed_freq, channel, self.scaling), 1e-32, np.inf)
                 ktilde = 1/inter
-            ktilde = self.pad_and_reflect(ktilde[:,0],ktilde.shape[0]*2 - 2)
+            ktilde = pad_and_reflect(ktilde[:,0],ktilde.shape[0]*2 - 2)
             sqrt_piece = np.sqrt(1 + (4/eps) * ktilde)
             
             v2 = 0.5 * (sqrt_piece + 1) / (1 + ktilde) - 1
@@ -135,23 +152,8 @@ class model():
             return v2 #- np.min(v2)
         return v_opt
     
-    def pad_and_reflect(self, fil, N, padval=0):
-        """
-        Zero-pad to length N//2 and reflect about origin to make length N. 
-        """
-        expanded = np.pad(fil, (0, N//2 + 1 - len(fil)), constant_values=(0, padval))
-        return np.concatenate([expanded[::-1], expanded[1:]])
     
-    def extrap_and_reflect(self, fil, N, return_log=False):
-        """
-        Linearly extrapolate the log filter to better approximate tails and reflect 
-        about origin to make length N.
-        """
-        extrap_fun = interp1d(range(0, len(fil)), np.maximum(-32, np.log(fil)), fill_value='extrapolate')
-        expanded = extrap_fun(range(0, N//2 + 1))
-        if not return_log:
-            expanded = np.exp(expanded)
-        return np.concatenate([expanded[::-1], expanded[1:]])
+
     
     def filter_power(self, eps, indices, klims, channel):
         vfun = self.filter_k(eps, channel, klims)
@@ -161,12 +163,12 @@ class model():
         elif self.fixed_type == 'temporal':
             ktilde = 1/C.interpolate(indices, self.fixed_freq, channel, self.scaling)
         
-        ktilde = self.pad_and_reflect(ktilde[:,0],ktilde.shape[0]*2 - 2)
+        ktilde = pad_and_reflect(ktilde[:,0],ktilde.shape[0]*2 - 2)
     
         dk = 2*np.pi/len(indices)
     
     
-        freqs = self.pad_and_reflect(self.freqs, len(self.freqs)*2 - 2)
+        freqs = pad_and_reflect(self.freqs, len(self.freqs)*2 - 2)
     
         return np.sum(v2**2 * np.abs(freqs) * (1/ktilde + 1) * dk)/(2 * np.pi)
         #John: Needs to make sure I do the conversion from integral to sum correctly
@@ -182,7 +184,7 @@ class model():
     
     def get_v(self):
         # make a double exponential smoothing filter
-        fz = np.arange(-.2,.2, 0.01)
+        fz = np.arange(-.2,.2, 0.0015)
         ff = np.exp(-20 * np.abs(fz))
         ff /= np.sum(ff)
         
@@ -191,14 +193,14 @@ class model():
             vv = self.filter_k(10**self.log_nus[i], i)(self.freqs)
             vv = vv[vv.shape[0]//2:]
             vf = np.convolve(vv, ff, mode = 'same')
-            
+            #FOR THE TEMPORAL CASE, THIS CONVOLUTION IS NOT ENOUGH AT ALL 
             
             if self.fixed_type == 'temporal':
-                vvf = self.pad_and_reflect(vf, vf.shape[0]*2)
+                vvf = pad_and_reflect(vf, vf.shape[0]*2)
                 log_va = 0
                 vspace = np.real(scipy.fft.fftshift(scipy.fft.fft(scipy.fft.ifftshift(vvf))))
             elif self.fixed_type == 'spatial':
-                vvf = self.extrap_and_reflect(vf, vv.shape[0], return_log=True)
+                vvf = extrap_and_reflect(vf, vv.shape[0]*2, return_log=True)
                 log_va = np.conj(ssig.hilbert(vvf))
                 vspace = np.real(scipy.fft.fftshift(scipy.fft.fft(scipy.fft.ifftshift(np.exp(log_va)))))
             vspace_omega.append(vspace); vv_all.append(vv); vf_all.append(vf); vvf_all.append(vvf); log_va_all.append(log_va)
@@ -217,14 +219,13 @@ def train_filters(n_fixed_freq, n_freqs, fixed_type, sigout, scaling):
         models.append(mod)
     return models
 
-def plot_filters(models):
+def plot_filters(models, plot_range = 100):
     fig, ax = plt.subplots(1, 3, figsize=(16, 8))
     colors = ['red', 'green', 'blue', 'purple', 'orange', 'brown', 'yellow', 'pink', 'darkred', 'olive']
     channel_labels = ['L+M+S', 'L+M-S', 'L-M']
     lines = []
     x_length = models[0].vspace.shape[1]
     center = x_length//2
-    plot_range = 100
     fixed_type = models[0].fixed_type
     
     if fixed_type == 'temporal':
