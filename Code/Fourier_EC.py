@@ -16,6 +16,11 @@ import scipy.signal as ssig
 
 from scipy.interpolate import RectBivariateSpline, BivariateSpline
 
+#That looks really nice: 
+#test = grid_models([0.25,0.5,1,2,4], [1,2,3,4,5,6])
+#grid_values(test, command = '[0].powers[2]')
+
+P_total = 1
 
 def soft_bandpass(lo, hi, freqs, stiffness=10):
     if lo <= 0:
@@ -129,7 +134,7 @@ class model():
                 inter = np.clip(C.interpolate(indices, self.fixed_freq, channel, self.scaling), 1e-32, np.inf)
                 ktilde = 1/inter
             ktilde = pad_and_reflect(ktilde[:,0],ktilde.shape[0]*2 - 2)
-            sqrt_piece = np.sqrt(1 + (4/eps) * ktilde)
+            sqrt_piece = np.sqrt(1 + (4/(eps*self.sigout**2)) * ktilde)
             
             v2 = 0.5 * (sqrt_piece + 1) / (1 + ktilde) - 1
             v2 = np.sqrt(np.maximum(v2, 0) * self.sigout**2)
@@ -151,9 +156,6 @@ class model():
     
             return v2 #- np.min(v2)
         return v_opt
-    
-    
-
     
     def filter_power(self, eps, indices, klims, channel):
         vfun = self.filter_k(eps, channel, klims)
@@ -177,14 +179,18 @@ class model():
 
     def excess_power(self, log_eps, indices, klims):
         total_power = 0
+        eig_powers = []
         for i in range(C.n_channels):
             eig_power = self.filter_power(10**log_eps[i], indices, klims, i)
             total_power += eig_power
+            eig_powers.append(eig_power)
+        self.powers = eig_powers
         return self.P - total_power
+    
     
     def get_v(self):
         # make a double exponential smoothing filter
-        fz = np.arange(-.2,.2, 0.0015)
+        fz = np.arange(-.2,.2, 0.0001) #0.0015 for 1000 and 0.0001 for 10000
         ff = np.exp(-20 * np.abs(fz))
         ff /= np.sum(ff)
         
@@ -206,7 +212,7 @@ class model():
             vspace_omega.append(vspace); vv_all.append(vv); vf_all.append(vf); vvf_all.append(vvf); log_va_all.append(log_va)
         vspace_omega = np.array(vspace_omega)
         vspace_omega /= np.linalg.norm(vspace_omega)
-        self.vspace = vspace_omega; self.vv = vv_all; self.vf = np.array(vf_all); self.vvf = vvf_all; self.log_va = log_va_all
+        self.vspace = vspace_omega; self.vv = vv_all; self.vf = np.array(vf_all); self.vvf = vvf_all; self.log_va = log_va_all; self.ff = ff
         
        
             
@@ -214,7 +220,7 @@ def train_filters(n_fixed_freq, n_freqs, fixed_type, sigout, scaling):
     fixed_freqs = np.linspace(0,2*np.pi, n_fixed_freq)
     models = []
     for fixed_freq in fixed_freqs:
-        mod = model(fixed_freq, n_freqs, None, 1, fixed_type, sigout, scaling)
+        mod = model(fixed_freq, n_freqs, None, P_total, fixed_type, sigout, scaling)
         mod.get_v()
         models.append(mod)
     return models
@@ -272,7 +278,7 @@ def plot_spacetime(models):
         model_space = models[omega]
         vf = model_space.vf
         argmax = 2*np.pi*(np.argmax(vf)%vf.shape[1])/vf.shape[1]
-        print(argmax, np.argmax(vf), vf.shape)
+        #print(argmax, np.argmax(vf), vf.shape)
         model_time = model(argmax, n_time_freqs, None, 1, 'temporal', model_space.P, scaling)
         model_time.get_v()
         vt = model_time.vf
@@ -295,5 +301,31 @@ def plot_spacetime(models):
         ax[i].set_ylabel("Spatial frequency", size = 12)
 
             
-            
-    
+def grid_models(sigs, scales):
+    models_all = []
+    for i in range(len(sigs)):
+        models_sig = []
+        for j in range(len(scales)):
+            models = train_filters(4, 10000, 'temporal', sigs[i], scales[j])
+            models_sig.append(models)
+            print(i, j)
+        models_all.append(models_sig)
+    return models_all
+
+def grid_values(models_all, sigs = [0.25,0.5,1,2,4], command = '[0].powers[2]'):
+    n_sigs = len(models_all)
+    n_scales = len(models_all[0])
+    grid = np.zeros([n_sigs, n_scales])
+    for i in range(n_sigs):
+        #for j in list(reversed(range(n_scales))):
+         for j in range(n_scales):
+             command_post = 'models_all[' + str(i) + '][' + str(j) + ']' + command
+             grid[i,j] = eval(command_post)
+    plt.imshow(np.array(grid), origin='lower')
+    plt.ylabel("Output noise", size = 30)
+    plt.yticks(np.arange(n_sigs), sigs)
+    plt.xlabel("Input noise (log10)", size = 30)
+    plt.xticks([])
+    plt.colorbar()
+    plt.title("Power in L-M eigenchannel at the lowest temporal frequency", size = 30)
+    return grid
