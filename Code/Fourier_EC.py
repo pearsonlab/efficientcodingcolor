@@ -87,6 +87,7 @@ class model():
         self.P = P
         self.fixed_type = fixed_type
         self.n_channels = C.n_channels
+        self.power_freqs = []
         power_constraint = {'type': 'ineq', 'fun': self.excess_power, 'args': (self.freqs, klims)}
         eps_fun = self.create_information_eps()
         res = opt.minimize(eps_fun, np.array([-10,-10,-10]), bounds=[(-16, np.inf)], constraints=[power_constraint])
@@ -157,7 +158,7 @@ class model():
             return v2 #- np.min(v2)
         return v_opt
     
-    def filter_power(self, eps, indices, klims, channel):
+    def filter_power(self, eps, indices, klims, channel, sum_power = True):
         vfun = self.filter_k(eps, channel, klims)
         v2 = vfun(indices)
         if self.fixed_type == 'spatial':
@@ -171,8 +172,15 @@ class model():
     
     
         freqs = pad_and_reflect(self.freqs, len(self.freqs)*2 - 2)
-    
-        return np.sum(v2**2 * np.abs(freqs) * (1/ktilde + 1) * dk)/(2 * np.pi)
+        power_freqs = v2**2 * np.abs(freqs) * (1/ktilde + 1) * dk
+        if sum_power: 
+            return np.sum(power_freqs)/(2*np.pi)
+            
+        else:
+            power_freqs = power_freqs/(2*np.pi)
+            self.power_freqs.append(power_freqs)
+            #return power_freqs
+        #return np.sum(v2**2 * np.abs(freqs) * (1/ktilde + 1) * dk)/(2 * np.pi)
         #John: Needs to make sure I do the conversion from integral to sum correctly
         #Need to make srue dk is the correct value. dk = 2*pi/L
         #By convention, frequencies discrete are -pi to pi. My frequencies are from 0 to L. 
@@ -196,6 +204,7 @@ class model():
         
         vspace_omega = []; vv_all = []; vf_all = []; vvf_all = []; log_va_all = []
         for i in range(self.n_channels):
+            self.filter_power(10**self.log_nus[i], self.freqs, None, i, sum_power = False)
             vv = self.filter_k(10**self.log_nus[i], i)(self.freqs)
             vv = vv[vv.shape[0]//2:]
             vf = np.convolve(vv, ff, mode = 'same')
@@ -213,6 +222,25 @@ class model():
         vspace_omega = np.array(vspace_omega)
         vspace_omega /= np.linalg.norm(vspace_omega)
         self.vspace = vspace_omega; self.vv = vv_all; self.vf = np.array(vf_all); self.vvf = vvf_all; self.log_va = log_va_all; self.ff = ff
+        
+    def lms_RFs(self, model):
+        lms_RFs = np.zeros(model.vf.shape)
+        vf = model.vf
+        n_channels = model.n_channels
+        fig, ax = plt.subplots(1, 3, figsize=(16,8))
+        lms_titles = ["L channel", "M channel", "S channel"]
+        for eig_c in range(n_channels):
+            lms_RFs += (np.sqrt(vf[eig_c,:,np.newaxis])*U[:,0,:,eig_c]).T
+        for color in range(n_channels):
+            vvf = pad_and_reflect(lms_RFs[omega_index,color,:], lms_RFs.shape[2]*2)
+            vspace = np.real(scipy.fft.fftshift(scipy.fft.fft(scipy.fft.ifftshift(vvf))))
+            line, = ax[color].plot(vspace, color = colors[omega_index], label = str(('{:.3f}').format(omega)))
+            ax[color].set_title(lms_titles[color], size = 30)
+            center = int(vspace.shape[0]/2)
+            plot_range = 50
+            ax[color].set_xlim(center - plot_range, center + plot_range)
+        lines.append(line)
+    ax[2].legend(handles=lines, title = "Temporal frequency", fontsize = 12)
         
        
             
@@ -313,6 +341,7 @@ def grid_models(sigs, scales):
     return models_all
 
 def grid_values(models_all, sigs = [0.25,0.5,1,2,4], command = '[0].powers[2]'):
+    plt.figure()
     n_sigs = len(models_all)
     n_scales = len(models_all[0])
     grid = np.zeros([n_sigs, n_scales])
@@ -327,5 +356,6 @@ def grid_values(models_all, sigs = [0.25,0.5,1,2,4], command = '[0].powers[2]'):
     plt.xlabel("Input noise (log10)", size = 30)
     plt.xticks([])
     plt.colorbar()
-    plt.title("Power in L-M eigenchannel at the lowest temporal frequency", size = 30)
+    plt.title("Power in L+M+S eigenchannel at the lowest temporal frequency", size = 30)
     return grid
+
