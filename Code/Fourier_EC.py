@@ -223,24 +223,26 @@ class model():
         vspace_omega /= np.linalg.norm(vspace_omega)
         self.vspace = vspace_omega; self.vv = vv_all; self.vf = np.array(vf_all); self.vvf = vvf_all; self.log_va = log_va_all; self.ff = ff
         
-    def lms_RFs(self, model):
-        lms_RFs = np.zeros(model.vf.shape)
-        vf = model.vf
-        n_channels = model.n_channels
-        fig, ax = plt.subplots(1, 3, figsize=(16,8))
-        lms_titles = ["L channel", "M channel", "S channel"]
+    def lms_RFs(self):
+        lms_RFs = np.zeros(self.vf.shape)
+        vf = self.vf
+        n_channels = self.n_channels
+
         for eig_c in range(n_channels):
-            lms_RFs += (np.sqrt(vf[eig_c,:,np.newaxis])*U[:,0,:,eig_c]).T
+            lms_RFs += (np.sqrt(vf[eig_c,:,np.newaxis])*C.eigvects[0,0,:,eig_c]).T
+        vspace_LMS = []
         for color in range(n_channels):
-            vvf = pad_and_reflect(lms_RFs[omega_index,color,:], lms_RFs.shape[2]*2)
+            vvf = pad_and_reflect(lms_RFs[color,:], lms_RFs.shape[1]*2)
             vspace = np.real(scipy.fft.fftshift(scipy.fft.fft(scipy.fft.ifftshift(vvf))))
-            line, = ax[color].plot(vspace, color = colors[omega_index], label = str(('{:.3f}').format(omega)))
-            ax[color].set_title(lms_titles[color], size = 30)
-            center = int(vspace.shape[0]/2)
-            plot_range = 50
-            ax[color].set_xlim(center - plot_range, center + plot_range)
-        lines.append(line)
-    ax[2].legend(handles=lines, title = "Temporal frequency", fontsize = 12)
+            vspace_LMS.append(vspace)
+        self.vspace_LMS = np.array(vspace_LMS)
+            #line, = ax[color].plot(vspace, color = colors[omega_index], label = str(('{:.3f}').format(omega)))
+            #ax[color].set_title(lms_titles[color], size = 30)
+            #center = int(vspace.shape[0]/2)
+            #plot_range = 50
+            #ax[color].set_xlim(center - plot_range, center + plot_range)
+        #lines.append(line)
+    #ax[2].legend(handles=lines, title = "Temporal frequency", fontsize = 12)
         
        
             
@@ -250,13 +252,18 @@ def train_filters(n_fixed_freq, n_freqs, fixed_type, sigout, scaling):
     for fixed_freq in fixed_freqs:
         mod = model(fixed_freq, n_freqs, None, P_total, fixed_type, sigout, scaling)
         mod.get_v()
+        mod.lms_RFs()
         models.append(mod)
+    
     return models
 
-def plot_filters(models, plot_range = 100):
+def plot_filters(models, plot_range = 100, lms = False):
     fig, ax = plt.subplots(1, 3, figsize=(16, 8))
     colors = ['red', 'green', 'blue', 'purple', 'orange', 'brown', 'yellow', 'pink', 'darkred', 'olive']
-    channel_labels = ['L+M+S', 'L+M-S', 'L-M']
+    if not lms:
+        channel_labels = ['L+M+S', 'L+M-S', 'L-M']
+    else:
+        channel_labels = ['L', 'M', 'S']
     lines = []
     x_length = models[0].vspace.shape[1]
     center = x_length//2
@@ -271,7 +278,10 @@ def plot_filters(models, plot_range = 100):
     
     for omega in range(len(models)):
         model = models[omega]
-        vspace = model.vspace
+        if lms:
+            vspace = model.vspace_LMS
+        else:
+            vspace = model.vspace
         
         for i in range(C.n_channels):
             if np.max(vspace[i,:]) == 0:
