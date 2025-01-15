@@ -110,12 +110,17 @@ class model():
                 elif self.fixed_type == 'temporal':
                     #ktilde = 1/Cx[:,int(fixed_freq), i]
                     ktilde = 1/C.interpolate(self.freqs, self.fixed_freq, i, self.scaling)
+                
+                
+                power = self.filter_power(eps_eigenchannel, self.freqs, None, i)
+                
                 ktilde = pad_and_reflect(ktilde[:,0],ktilde.shape[0]*2 - 2)
-                #numer = np.maximum(0, sigout**2 /(2 * (ktilde + 1e-32)) * (np.sqrt(1 + 4 * ktilde/(eps_eigenchannel * sigout**2)) - 1) - sigout**2) + sigout**2
-                #denom = np.maximum(0, sigout**2 /(2 * (ktilde + 1)) * (np.sqrt(1 + 4 * ktilde/(eps_eigenchannel * sigout**2)) + 1) - sigout**2) + sigout**2
-    
-                numer = np.maximum(0, 1/(2 * (ktilde + 1e-32)) * (np.sqrt(1 + 4 * ktilde/(eps_eigenchannel * self.sigout**2)) - 1) - 1) + 1
-                denom = np.maximum(0, 1/(2 * (ktilde + 1)) * (np.sqrt(1 + 4 * ktilde/(eps_eigenchannel * self.sigout**2)) + 1) - 1) + 1
+                #numer = np.maximum(0, 1/(2 * (ktilde + 1e-32)) * (np.sqrt(1 + 4 * ktilde/(eps_eigenchannel * self.sigout**2)) - 1) - 1) + 1
+                #denom = np.maximum(0, 1/(2 * (ktilde + 1)) * (np.sqrt(1 + 4 * ktilde/(eps_eigenchannel * self.sigout**2)) + 1) - 1) + 1
+                
+                numer = power + self.sigout**2
+                denom = (ktilde/(1+ktilde)*power + self.sigout**2)
+                
                 self.info_numer = numer
                 self.info_denom = denom
                 
@@ -200,7 +205,7 @@ class model():
     
     def get_v(self):
         # make a double exponential smoothing filter
-        fz = np.arange(-.2,.2, 0.0001) #0.0015 for 1000 and 0.0001 for 10000
+        fz = np.arange(-.2,.2, 0.00005) #0.0015 for 1000 and 0.0001 for 10000
         ff = np.exp(-20 * np.abs(fz))
         ff /= np.sum(ff)
         
@@ -253,6 +258,7 @@ def train_filters(n_fixed_freq, n_freqs, fixed_type, sigout, scaling):
     fixed_freqs = np.linspace(0,2*np.pi, n_fixed_freq)
     models = []
     for fixed_freq in fixed_freqs:
+        #print(fixed_freq)
         mod = model(fixed_freq, n_freqs, None, P_total, fixed_type, sigout, scaling)
         mod.get_v()
         mod.lms_RFs()
@@ -281,6 +287,7 @@ def plot_filters(models, plot_range = 50, lms = False):
     ymin = 0
     ymax = 0
     for omega in range(len(models)):
+        omega = 0
         model = models[omega]
         if lms:
             vspace = model.vspace_LMS
@@ -361,7 +368,7 @@ def grid_models(sigs, scales):
         models_all.append(models_sig)
     return models_all
 
-def grid_values(models_all, sigs = [0.25,0.5,1,2,4], command = '[0].powers[2]'):
+def grid_values(models_all, sigs = [0.25,0.5,1], command = '[0].powers[2]'):
     plt.figure()
     n_sigs = len(models_all)
     n_scales = len(models_all[0])
@@ -371,12 +378,15 @@ def grid_values(models_all, sigs = [0.25,0.5,1,2,4], command = '[0].powers[2]'):
          for j in range(n_scales):
              command_post = 'models_all[' + str(i) + '][' + str(j) + ']' + command
              grid[i,j] = eval(command_post)
-    plt.imshow(np.array(grid), origin='lower')
+    grid_flip = np.flip(np.array(grid), axis = 1)
+    plt.imshow(grid_flip, origin='lower')
     plt.ylabel("Output noise", size = 30)
     plt.yticks(np.arange(n_sigs), sigs)
-    plt.xlabel("Input noise (log10)", size = 30)
+    plt.xlabel("Input signal (log10)", size = 30)
     plt.xticks([])
-    plt.colorbar()
-    plt.title("Power in L+M+S eigenchannel at the lowest temporal frequency", size = 30)
+    cbar = plt.colorbar()
+    cbar.ax.tick_params(labelsize=20)
+
+    plt.title("Power in L-M eigenchannel at the lowest temporal frequency", size = 30)
     return grid
 
