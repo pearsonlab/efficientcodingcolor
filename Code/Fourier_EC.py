@@ -116,7 +116,8 @@ class model():
     
                 numer = np.maximum(0, 1/(2 * (ktilde + 1e-32)) * (np.sqrt(1 + 4 * ktilde/(eps_eigenchannel * self.sigout**2)) - 1) - 1) + 1
                 denom = np.maximum(0, 1/(2 * (ktilde + 1)) * (np.sqrt(1 + 4 * ktilde/(eps_eigenchannel * self.sigout**2)) + 1) - 1) + 1
-                
+                self.info_numer = numer
+                self.info_denom = denom
                 
                 info = np.sum(np.log(numer) - np.log(denom))
                 infos.append(info)
@@ -172,6 +173,7 @@ class model():
     
     
         freqs = pad_and_reflect(self.freqs, len(self.freqs)*2 - 2)
+        self.v2 = v2
         power_freqs = v2**2 * np.abs(freqs) * (1/ktilde + 1) * dk
         if sum_power: 
             return np.sum(power_freqs)/(2*np.pi)
@@ -235,7 +237,8 @@ class model():
             vvf = pad_and_reflect(lms_RFs[color,:], lms_RFs.shape[1]*2)
             vspace = np.real(scipy.fft.fftshift(scipy.fft.fft(scipy.fft.ifftshift(vvf))))
             vspace_LMS.append(vspace)
-        self.vspace_LMS = np.array(vspace_LMS)
+        vspace_LMS /= np.linalg.norm(np.array(vspace_LMS))
+        self.vspace_LMS = vspace_LMS
             #line, = ax[color].plot(vspace, color = colors[omega_index], label = str(('{:.3f}').format(omega)))
             #ax[color].set_title(lms_titles[color], size = 30)
             #center = int(vspace.shape[0]/2)
@@ -257,7 +260,7 @@ def train_filters(n_fixed_freq, n_freqs, fixed_type, sigout, scaling):
     
     return models
 
-def plot_filters(models, plot_range = 100, lms = False):
+def plot_filters(models, plot_range = 50, lms = False):
     fig, ax = plt.subplots(1, 3, figsize=(16, 8))
     colors = ['red', 'green', 'blue', 'purple', 'orange', 'brown', 'yellow', 'pink', 'darkred', 'olive']
     if not lms:
@@ -275,13 +278,20 @@ def plot_filters(models, plot_range = 100, lms = False):
     elif fixed_type == 'spatial':
         label_title = 'Spatial frequency'
         x_label = 'Temporal filter v(z) for '
-    
+    ymin = 0
+    ymax = 0
     for omega in range(len(models)):
         model = models[omega]
         if lms:
             vspace = model.vspace_LMS
         else:
             vspace = model.vspace
+        cur_min = np.min(vspace)
+        cur_max = np.max(vspace)
+        if cur_min < ymin:
+            ymin = cur_min
+        if cur_max > ymax:
+            ymax = cur_max
         
         for i in range(C.n_channels):
             if np.max(vspace[i,:]) == 0:
@@ -295,10 +305,11 @@ def plot_filters(models, plot_range = 100, lms = False):
             line, = ax[i].plot(x_values, y_values, color = colors[omega], label = str(('{:.3f}').format(model.fixed_freq)))
             
             ax[i].set_xlabel(r"$z$")
-            ax[i].set_title(x_label + channel_labels[i]);
+            ax[i].set_title(x_label + channel_labels[i], size = 30);
         lines.append(line)   
-    ax[C.n_channels-1].legend(handles=lines, title = label_title, fontsize = 12)
-    
+    ax[C.n_channels-1].legend(handles=lines, title = label_title, fontsize = 25, title_fontsize=20)
+    for axis in ax:
+        axis.set_ylim([ymin, ymax])
 #THERE IS A BUG WITH ARGMAX PLEASE FIX IT BEFORE USE!!!! THERE IS A BUG WITH ARGMAX PLEASE FIX IT BEFORE USE!!!! THERE IS A BUG WITH ARGMAX PLEASE FIX IT BEFORE USE!!!! THERE IS A BUG WITH ARGMAX PLEASE FIX IT BEFORE USE!!!!
 def plot_spacetime(models):
     fig, ax = plt.subplots(1,3, figsize=(16,8))
