@@ -124,6 +124,8 @@ class video_segment():
         self.n_colors = self.video_rgb.shape[3]
         for c in range(self.n_colors):
             video_lms[:,c,:,:] = (video_lms[:,c,:,:] - color_means[c])/color_stds[c]
+            #video_lms[:,c,:,:] = (video_lms[:,c,:,:] - np.mean(video_lms[:,c,:,:])/np.std(video_lms[:,c,:,:]))
+            
         self.video = video_lms 
         
         
