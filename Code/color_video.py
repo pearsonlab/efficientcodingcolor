@@ -10,7 +10,7 @@ import os
 #<<<<<<< Updated upstream
 import sys
 #=======
-#os.environ["IMAGEIO_FFMPEG_EXE"] = "/usr/bin/ffmpeg" #This snippet can make it so MoviePy cannot find videos!!!
+os.environ["IMAGEIO_FFMPEG_EXE"] = "/usr/bin/ffmpeg" #This snippet can make it so MoviePy cannot find videos!!!
 #>>>>>>> Stashed changes
 import skvideo
 import skvideo.io
@@ -27,7 +27,11 @@ np.float = np.float64
 np.int = np.int_
 
 
+max_mem = 70
+freq_length = 128
 
+#Use second GPU
+np.cuda.runtime.setDevice(1)
 
 ###NOTE I CHANGED BIN_PSD TO NOT TAKE LOW SPATIAL FREQUENCIES IN X OR Y AS A TEST!!!
 
@@ -62,7 +66,7 @@ rgb2lms = np.array([[0.192325269,  0.749548882,  0.0675726702],
 
 #Takes 2D spectrogram in spacexspace and returns radial freqs and rad power
 
-def check_memory(maximum = 30, print_statement = True):
+def check_memory(maximum, print_statement = True):
     if sys.platform == 'win32':
         return
     total_memory, used_memory, free_memory = map(
@@ -77,18 +81,32 @@ def check_memory(maximum = 30, print_statement = True):
     #Note 2: Run same analysis with different window sizes and see if we have same result 
 #This function is obsolete. Use load_video_segment instead. 
 def load_video(filename, n_frames = 10000, path = global_path):
-    check_memory(30)
+    check_memory(max_mem)
     return skvideo.io.vread(path + filename, num_frames = n_frames)[:,:,0:500,:]
 
 def load_video_segment(video_clip, frames):
     fps = video_clip.fps
-    check_memory(30, print_statement = False)
+    check_memory(max_mem, print_statement = False)
     video_segment = []
     frames_array = np.linspace(int(frames[0]), int(frames[1]), int(frames[1] - frames[0] + 1))
     #frames_array = np.array(range(frames[0], frames[1]))
     for t in frames_array:
         video_segment.append(video_clip.get_frame(t/fps))
-    return np.array(video_segment)[:,130:230, 270:370,:]
+    video_segment = np.array(video_segment)
+    x_center = int(video_segment.shape[1]/2)
+    y_center = int(video_segment.shape[2]/2)
+    
+    x_length = freq_length
+    y_length = freq_length
+    
+    x_min = int(x_center-x_length/2)
+    x_max = int(x_center+x_length/2)
+    
+    y_min = int(y_center-y_length/2)
+    y_max = int(y_center+y_length/2)
+    
+    return np.array(video_segment)[:,x_min:x_max, y_min:y_max,:] #ORIGINAL CX WAS 100x100
+    #return np.array(video_segment)[:,130:180, 270:320,:]
     #return np.array(video_segment)
 
 class video_segment():
@@ -180,7 +198,7 @@ class video_segment():
     
     
     #For every temporal frequency, look at the 3D psd for that TF and compute the radial spatial frequencies. Then, bin those radial spatial frequencies in n_bins different bins of the same size. 
-    #This returns the log10(STpsd)
+    #This returns Cx 
     def make_spatiotemporal_psd(self, n_bins, save_radial_freqs = False, min_freq = 0):
         n_TFs = self.psd3D.shape[0]*2 + 1
 
@@ -255,7 +273,7 @@ class PSD():
         
         for t in range(self.time_points.shape[0]-1):
             #print("Start:", time.time() - current_time)
-            check_memory(50, print_statement = False)
+            check_memory(max_mem, print_statement = False)
             segment = video_segment(self.video_clip, [self.time_points[t], self.time_points[t+1]], self.color_means, self.color_stds)
             #print("Made segment:", time.time() - current_time)
             segment.make_psd_3D()
@@ -392,11 +410,17 @@ def bin_Cx(Cx, n_bins):
     
     bins = numpy.linspace(np.min(freqs_space), np.max(freqs_space), n_bins)
     digitized = np.digitize(freqs_space, bins)
-
+    angle = np.arctan((x_freqs + 0.0001)/(y_freqs + 0.0001))
+    print(np.max(angle), np.min(angle))
     #bin_means = [power[digitized == i].reshape([self.psd3D.shape[0],self.n_colors, -1]).mean(axis=2) for i in range(1, len(bins)-1)] #I ran tests and this should be the right order
     bin_means = []
     for i in range(1, len(bins) - 1):
-        mean = Cx[digitized == i].reshape([n_TFs,n_colors,n_colors, -1]).mean(axis=3)
+        means = Cx[digitized == i].reshape([n_TFs,n_colors,n_colors, -1])
+        
+        #Code for troubleshooting purposes: Look at Cx at different angles 
+        #means = Cx[np.logical_and(digitized == i, np.logical_and(angle > -0.1,angle<0.1))].reshape([n_TFs,n_colors,n_colors, -1])
+        #means = Cx[np.logical_and(digitized == i, np.logical_and(angle > np.pi/4-0.1,angle<np.pi/4+0.1))].reshape([n_TFs,n_colors,n_colors, -1])
+        mean = means.mean(axis=3)
         if not np.isnan(mean[0,0,0]):
             bin_means.append(mean.get())
     return np.array(bin_means)
@@ -449,8 +473,6 @@ def plot_psd_cov(to_plot):
             else:
                 ax[i,j].set_visible(False)
     fig.tight_layout()
-    
-    
 
 def plot_eig_diff(to_plot):
     #last two dimensions define subplot size

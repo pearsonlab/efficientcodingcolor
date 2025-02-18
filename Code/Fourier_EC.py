@@ -16,9 +16,12 @@ import scipy.signal as ssig
 
 from scipy.interpolate import RectBivariateSpline, BivariateSpline
 
-#That looks really nice: 
-#test = grid_models([0.25,0.5,1,2,4], [1,2,3,4,5,6])
+#That looks really nice. Can't have output noise more than 1 after power bug fix 
+#test = grid_models([0.25,0.5,1], [1,2,3,4,5,6])
 #grid_values(test, command = '[0].powers[2]')
+
+
+#test = grid_models([0.06125,0.125,0.25,0.5,1], [1,2,3,4,5,6]) #To get clean transition through 0
 
 P_total = 1
 
@@ -28,8 +31,8 @@ def soft_bandpass(lo, hi, freqs, stiffness=10):
     else:
         return scipy.special.expit(stiffness * (freqs - lo)) * scipy.special.expit(stiffness * (hi - freqs))
 
-def import_C():
-    with open(os.getcwd() + "/../../Cx.pkl", 'rb') as f:
+def import_C(name):
+    with open(os.getcwd() + "/../../" + name + ".pkl", 'rb') as f:
         x = pickle.load(f)
     return x
 
@@ -52,8 +55,8 @@ def extrap_and_reflect(fil, N, return_log=False):
     return np.concatenate([expanded[::-1], expanded[1:]])
 
 class covariance():
-    def __init__(self):
-        C_dict = import_C()
+    def __init__(self, name):
+        C_dict = import_C(name)
         
         self.n_time_freqs = C_dict['Cx_eigvals'].shape[1]//2
         self.n_space_freqs = C_dict['Cx_eigvals'].shape[0]
@@ -73,11 +76,24 @@ class covariance():
         
     def interpolate(self, k, o, i, scaling):
         func = RectBivariateSpline(np.linspace(0, 2*np.pi, self.Cx.shape[0]), np.linspace(0, 2*np.pi, self.Cx.shape[1]), np.log10(self.Cx[:,:,i]), s = 0)
-        return 10**func(k,o)/(10**scaling) #November 7th, 202
+        return 10**func(k,o)/(10**scaling) #November 7th, 2024
+    # i is the eigenchannel. Returns eigenvectors number i for different spatial and temporal frequencies. 
+    def eigvects_interpolate(self, k, o, i):
+        func_L = RectBivariateSpline(np.linspace(0, 2*np.pi, self.eigvects.shape[0]), np.linspace(0, 2*np.pi, self.eigvects.shape[1]), self.eigvects[:,:,0,i], s = 0)
+        func_M = RectBivariateSpline(np.linspace(0, 2*np.pi, self.eigvects.shape[0]), np.linspace(0, 2*np.pi, self.eigvects.shape[1]), self.eigvects[:,:,1,i], s = 0)
+        func_S = RectBivariateSpline(np.linspace(0, 2*np.pi, self.eigvects.shape[0]), np.linspace(0, 2*np.pi, self.eigvects.shape[1]), self.eigvects[:,:,2,i], s = 0)
+        
+        #Returns lists of lists but there's no simple way around that if I want the function to generalize for multiple spatial and temporal frequencies.
+        return np.array([func_L(k,o), func_M(k,o), func_S(k,o)]) 
+    
+    
 #return 10**func(k,o)/1000000
 
-C = covariance()
+C = covariance("Cx_256x256")
+#C.Cx = C.Cx[0:65,:,:]
 
+#C.eigvects[:,:,:,0] *= -1
+#C.eigvects[:,:,:,1] *= -1
 class model():
     def __init__(self, fixed_freq, n_freqs, klims, P, fixed_type, sigout, scaling):
         self.scaling = scaling
@@ -88,6 +104,12 @@ class model():
         self.fixed_type = fixed_type
         self.n_channels = C.n_channels
         self.power_freqs = []
+        self.n_freqs = n_freqs
+        
+        if fixed_type == 'temporal':
+            self.fixed_index = int(fixed_freq*C.n_time_freqs/(2*np.pi))
+        if fixed_type == 'spatial':
+            self.fixed_index = int(fixed_freq*C.n_space_freqs/(2*np.pi))
         power_constraint = {'type': 'ineq', 'fun': self.excess_power, 'args': (self.freqs, klims)}
         eps_fun = self.create_information_eps()
         res = opt.minimize(eps_fun, np.array([-10,-10,-10]), bounds=[(-16, np.inf)], constraints=[power_constraint])
@@ -205,41 +227,61 @@ class model():
     
     def get_v(self):
         # make a double exponential smoothing filter
-        fz = np.arange(-.2,.2, 0.00005) #0.0015 for 1000 and 0.0001 for 10000
+        fz = np.linspace(-.2,.2, int(self.n_freqs/20)) #0.0015 for 1000 and 0.0001 for 10000
+        #fz = np.arange(-.2,.2, 0.0001)
         ff = np.exp(-20 * np.abs(fz))
         ff /= np.sum(ff)
         
         vspace_omega = []; vv_all = []; vf_all = []; vvf_all = []; log_va_all = []
-        for i in range(self.n_channels):
-            self.filter_power(10**self.log_nus[i], self.freqs, None, i, sum_power = False)
-            vv = self.filter_k(10**self.log_nus[i], i)(self.freqs)
-            vv = vv[vv.shape[0]//2:]
-            vf = np.convolve(vv, ff, mode = 'same')
-            #FOR THE TEMPORAL CASE, THIS CONVOLUTION IS NOT ENOUGH AT ALL 
-            
-            if self.fixed_type == 'temporal':
-                vvf = pad_and_reflect(vf, vf.shape[0]*2)
-                log_va = 0
-                vspace = np.real(scipy.fft.fftshift(scipy.fft.fft(scipy.fft.ifftshift(vvf))))
-            elif self.fixed_type == 'spatial':
-                vvf = extrap_and_reflect(vf, vv.shape[0]*2, return_log=True)
-                log_va = np.conj(ssig.hilbert(vvf))
-                vspace = np.real(scipy.fft.fftshift(scipy.fft.fft(scipy.fft.ifftshift(np.exp(log_va)))))
-            vspace_omega.append(vspace); vv_all.append(vv); vf_all.append(vf); vvf_all.append(vvf); log_va_all.append(log_va)
-        vspace_omega = np.array(vspace_omega)
-        vspace_omega /= np.linalg.norm(vspace_omega)
-        self.vspace = vspace_omega; self.vv = vv_all; self.vf = np.array(vf_all); self.vvf = vvf_all; self.log_va = log_va_all; self.ff = ff
+        if self.log_nus is not None:
+            for i in range(self.n_channels):
+                self.filter_power(10**self.log_nus[i], self.freqs, None, i, sum_power = False)
+                vv = self.filter_k(10**self.log_nus[i], i)(self.freqs)
+                vv = vv[vv.shape[0]//2:]
+                vf = np.convolve(vv, ff, mode = 'same')
+                #FOR THE TEMPORAL CASE, THIS CONVOLUTION IS NOT ENOUGH AT ALL 
+                #print("hi")
+                if self.fixed_type == 'temporal':
+                    vvf = pad_and_reflect(vf, vf.shape[0]*2)
+                    log_va = 0
+                    vspace = np.real(scipy.fft.fftshift(scipy.fft.fft(scipy.fft.ifftshift(vvf))))
+                elif self.fixed_type == 'spatial':
+                    vvf = extrap_and_reflect(vf, vv.shape[0]*2, return_log=True)
+                    log_va = np.conj(ssig.hilbert(vvf))
+                    vspace = np.real(scipy.fft.fftshift(scipy.fft.fft(scipy.fft.ifftshift(np.exp(log_va)))))
+                vspace_omega.append(vspace); vv_all.append(vv); vf_all.append(vf); vvf_all.append(vvf); log_va_all.append(log_va)
+            vspace_omega = np.array(vspace_omega)
+            vspace_omega /= np.linalg.norm(vspace_omega)
+            self.vspace = vspace_omega; self.vv = np.array(vv_all); self.vf = np.array(vf_all); self.vvf = vvf_all; self.log_va = log_va_all; self.ff = ff
+            #print("hi again")
+            return True
+        else:
+            return False
         
     def lms_RFs(self):
-        lms_RFs = np.zeros(self.vf.shape)
+        vv_lms = np.zeros(self.vf.shape)
+        vf_lms = np.zeros(self.vf.shape)
+        vv = self.vv
         vf = self.vf
         n_channels = self.n_channels
-
+        
+        
         for eig_c in range(n_channels):
-            lms_RFs += (np.sqrt(vf[eig_c,:,np.newaxis])*C.eigvects[0,0,:,eig_c]).T
+            eigvects_interpolate = C.eigvects_interpolate(self.freqs,self.fixed_index,eig_c)[:,:,0]
+            vv_expand = np.repeat(vv[eig_c,:,np.newaxis],3,1).T
+            vf_expand = np.repeat(vf[eig_c,:,np.newaxis],3,1).T
+
+            vv_lms += (vv_expand*eigvects_interpolate)
+            vf_lms += (vf_expand*eigvects_interpolate)
+            #THERE SHOULD BE NO SQRT HERE!!! THERE IS ALREADY A SQRT IN FILTER_K
+            #vv_lms += (vv[eig_c,:,np.newaxis]*C.eigvects[0,self.fixed_index,:,eig_c]).T
+            #vf_lms += (vf[eig_c,:,np.newaxis]*C.eigvects[0,self.fixed_index,:,eig_c]).T
+        #    vv_lms 
         vspace_LMS = []
+        self.vf_lms = vf_lms
+        self.vv_lms = vv_lms
         for color in range(n_channels):
-            vvf = pad_and_reflect(lms_RFs[color,:], lms_RFs.shape[1]*2)
+            vvf = pad_and_reflect(vf_lms[color,:], vf_lms.shape[1]*2)
             vspace = np.real(scipy.fft.fftshift(scipy.fft.fft(scipy.fft.ifftshift(vvf))))
             vspace_LMS.append(vspace)
         vspace_LMS /= np.linalg.norm(np.array(vspace_LMS))
@@ -251,23 +293,28 @@ class model():
             #ax[color].set_xlim(center - plot_range, center + plot_range)
         #lines.append(line)
     #ax[2].legend(handles=lines, title = "Temporal frequency", fontsize = 12)
-        
        
             
 def train_filters(n_fixed_freq, n_freqs, fixed_type, sigout, scaling):
-    fixed_freqs = np.linspace(0,2*np.pi, n_fixed_freq)
+    fixed_freqs = np.linspace(0.1,2*np.pi, n_fixed_freq)
+    #fixed_freq = np.linspace(0, np.pi/4, 8)
     models = []
     for fixed_freq in fixed_freqs:
         #print(fixed_freq)
         mod = model(fixed_freq, n_freqs, None, P_total, fixed_type, sigout, scaling)
-        mod.get_v()
-        mod.lms_RFs()
-        models.append(mod)
-    
+        
+        success = mod.get_v()
+        if success:
+            mod.lms_RFs()
+            models.append(mod)
+        
     return models
 
-def plot_filters(models, plot_range = 50, lms = False):
-    fig, ax = plt.subplots(1, 3, figsize=(16, 8))
+def plot_filters(models, ax = None, plot_range = 50, lms = False, omegas = 'all'):
+    if ax is None:
+        fig, ax = plt.subplots(1, 3, figsize=(16, 8))
+    
+    
     colors = ['red', 'green', 'blue', 'purple', 'orange', 'brown', 'yellow', 'pink', 'darkred', 'olive']
     if not lms:
         channel_labels = ['L+M+S', 'L+M-S', 'L-M']
@@ -286,8 +333,12 @@ def plot_filters(models, plot_range = 50, lms = False):
         x_label = 'Temporal filter v(z) for '
     ymin = 0
     ymax = 0
-    for omega in range(len(models)):
-        omega = 0
+    if omegas == 'all':
+        omegas = range(len(models))
+    elif type(omegas) == int:
+        omegas = [omegas]
+        
+    for omega in omegas:
         model = models[omega]
         if lms:
             vspace = model.vspace_LMS
@@ -328,20 +379,28 @@ def plot_spacetime(models):
     w_indices = np.linspace(0, 2*np.pi, n_time_freqs)
     channel_labels = ['L+M+S', 'L+M-S', 'L-M']
     percentile_values = [99, 99.5, 99.9]
+    
     if models[0].fixed_type != 'temporal':
         Exception("Models must be spatial filters!")
+        
     for omega in range(len(models)):
         model_space = models[omega]
         vf = model_space.vf
-        argmax = 2*np.pi*(np.argmax(vf)%vf.shape[1])/vf.shape[1]
+        max_index = np.argmax(vf)%model_space.n_freqs
+        argmax = 2*np.pi*max_index/model_space.n_freqs
         #print(argmax, np.argmax(vf), vf.shape)
-        model_time = model(argmax, n_time_freqs, None, 1, 'temporal', model_space.P, scaling)
+        model_time = model(argmax, n_time_freqs, None, 1, 'spatial', model_space.P, scaling)
         model_time.get_v()
         vt = model_time.vf
         RF_omega = []
         for i in range(model_space.n_channels):
             RF_color_pre = np.outer(vf[i,:], vt[i,:])
-            RF_color = np.roll(RF_color_pre, int(omega/(2*np.pi)*model_space.freqs.shape[0]), axis = 1)
+            plt.figure()
+            plt.imshow(RF_color_pre)
+            #print(RF_color_pre.shape)
+            RF_color = np.roll(RF_color_pre, int(model_space.fixed_freq*n_time_freqs/(2*np.pi)), axis = 1)
+            #RF_color = np.roll(RF_color, int(argmax*model_space.n_freqs/(2*np.pi)))
+            #RF_color = RF_color_pre
             RF_omega.append(RF_color)
         RFs.append(RF_omega)
     RFs = np.array(RFs)
@@ -357,17 +416,18 @@ def plot_spacetime(models):
         ax[i].set_ylabel("Spatial frequency", size = 12)
 
             
-def grid_models(sigs, scales):
+def grid_models(sigs, scales, n_freqs = 10000):
     models_all = []
     for i in range(len(sigs)):
         models_sig = []
         for j in range(len(scales)):
-            models = train_filters(4, 10000, 'temporal', sigs[i], scales[j])
+            models = train_filters(4, n_freqs, 'temporal', sigs[i], scales[j])
             models_sig.append(models)
             print(i, j)
         models_all.append(models_sig)
     return models_all
 
+#Plot power in L-M channel at lowest spatial frequency for diff input and output noise levels 
 def grid_values(models_all, sigs = [0.25,0.5,1], command = '[0].powers[2]'):
     plt.figure()
     n_sigs = len(models_all)
@@ -390,3 +450,60 @@ def grid_values(models_all, sigs = [0.25,0.5,1], command = '[0].powers[2]'):
     plt.title("Power in L-M eigenchannel at the lowest temporal frequency", size = 30)
     return grid
 
+
+#Frequency plot for specific temporal frequency, input and output noise levels 
+def plot_freqs(models, omegas, log = False, ax = None, lms = False, axis_label = True):
+    model = models[omegas]
+    if ax is None:
+        fig, ax = plt.subplots(1,1)
+    lines = []
+    
+    if lms:
+        labels = ['L', 'M', 'S']
+        colors = ['red', 'green', 'blue']
+        vf = model.vv_lms
+    else:
+        labels = ['L+M+S', 'L+M-S', 'L-M']
+        colors = ['orangered', 'darkorange', 'gold']
+        vf = model.vv
+    for c in range(model.n_channels):
+        if log:
+            line, = ax.plot(model.freqs, np.log10(vf[c,:]*np.conjugate(vf[c,:])), color = colors[c], label = labels[c])
+        else:
+            line, = ax.plot(model.freqs, vf[c,:], color = colors[c], label = labels[c])
+            ax.axhline(0)
+        #ax.axvline(2.5)
+        lines.append(line)
+        #line, = ax[i].plot(x_values, y_values, color = colors[omega], label = str(('{:.3f}').format(model.fixed_freq)))
+    if axis_label:
+        ax.legend(handles=lines)
+        ax.set_xlabel("Frequency", size = 30)
+        ax.set_ylabel("Power", size = 30)
+
+#My input is a function and a set of models at diff params
+def grid_plots(function, models_all, omega, lms, log, sharey = True):
+    n_sigs = len(models_all)
+    n_scales = len(models_all[0])
+    fixed_freq = models_all[0][0][omega].fixed_freq
+    fig, axes = plt.subplots(n_sigs, n_scales, sharey = sharey)
+    for sig in range(n_sigs):
+        for scale in range(n_scales):
+            sig_rev = np.abs(sig-n_sigs+1)
+            scale_rev = np.abs(scale-n_scales+1)
+            y_values = models_all[sig][scale]
+            function(y_values, omegas = omega, ax = axes[sig_rev, scale_rev], lms = lms, log = log, axis_label = False)
+            #except:
+           #     print('oopsie')
+            if sig == 0:
+                axes[sig_rev,scale_rev].set_xlabel("Spatial frequency", fontsize= 20)
+                #axes[sig_rev,scale].set_xlabel(scale, fontsize=20)
+            if scale_rev == 0:
+                #axes[sig_rev,scale].set_ylabel(sig,fontsize=20)
+                if log:
+                    axes[sig_rev,scale_rev].set_ylabel("Power (log10)", fontsize = 20)
+                else:
+                    axes[sig_rev,scale_rev].set_ylabel("Amplitude", fontsize = 20)
+    fig.supxlabel('Input signal (log10)', size = 40)
+    fig.supylabel('Output noise →', size = 40)
+    fig.suptitle("Temporal frequency = " + str(('{:.3f}').format(fixed_freq)), size = 40)
+    
