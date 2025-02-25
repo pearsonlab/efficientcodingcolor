@@ -33,6 +33,8 @@ freq_length = 128
 #Use second GPU
 np.cuda.runtime.setDevice(1)
 
+global_normalize = True
+
 ###NOTE I CHANGED BIN_PSD TO NOT TAKE LOW SPATIAL FREQUENCIES IN X OR Y AS A TEST!!!
 
 #hey = PSD("Nature1_lowres.mp4", [0,10000])
@@ -93,6 +95,7 @@ def load_video_segment(video_clip, frames):
     for t in frames_array:
         video_segment.append(video_clip.get_frame(t/fps))
     video_segment = np.array(video_segment)
+    #print(video_segment.shape)
     x_center = int(video_segment.shape[1]/2)
     y_center = int(video_segment.shape[2]/2)
     
@@ -123,8 +126,12 @@ class video_segment():
         #video_lms = self.normalize_color(video_lms)
         self.n_colors = self.video_rgb.shape[3]
         for c in range(self.n_colors):
-            video_lms[:,c,:,:] = (video_lms[:,c,:,:] - color_means[c])/color_stds[c]
-            #video_lms[:,c,:,:] = (video_lms[:,c,:,:] - np.mean(video_lms[:,c,:,:])/np.std(video_lms[:,c,:,:]))
+          #  for t in range(video_lms.shape[0]):
+            
+                video_lms[:,c,:,:] = (video_lms[:,c,:,:] - color_means[c])/color_stds[c]
+                #print(np.mean(video_lms[t,c,:,:]), np.std(video_lms[t,c,:,:]))
+                #ideo_lms[t,c,:,:] = video_lms[t,c,:,:] - np.mean(video_lms[t,c,:,:])#/np.std(video_lms[t,c,:,:])
+                #print(video_lms.shape)
             
         self.video = video_lms 
         
@@ -248,7 +255,8 @@ class PSD():
             self.min_frame = frames[0]
         self.time_points = np.arange(self.min_frame, self.max_frame, time_bins)
         self.n_spatial_bins = n_spatial_bins
-        self.compute_means()
+        if global_normalize:
+            self.compute_means()
         
     def compute_means(self):
         print("Computing mean and std of each color channel")
@@ -315,6 +323,7 @@ class PSD():
         self.Cx_bin = Cx_bin.get()
         Cx = Cx_bin.get()
         
+        print(Cx.shape, 'Cx shape')
         n_space_freqs = Cx.shape[0]
         n_time_freqs = Cx.shape[1]
         n_colors = Cx.shape[2]
@@ -399,6 +408,7 @@ def bin_psd(power, n_bins):
             bin_means2.append(mean)
     return np.array(bin_means2)
 
+
 def bin_Cx(Cx, n_bins):
     n_TFs = Cx.shape[0]
     size = Cx.shape[-1]
@@ -410,7 +420,7 @@ def bin_Cx(Cx, n_bins):
     
     freqs_space = np.sqrt(x_freqs**2 + y_freqs**2)
     
-    bins = numpy.linspace(np.min(freqs_space), np.max(freqs_space), n_bins)
+    bins = numpy.linspace(np.min(freqs_space), np.max(x_freqs), n_bins)
     digitized = np.digitize(freqs_space, bins)
     angle = np.arctan((x_freqs + 0.0001)/(y_freqs + 0.0001))
     print(np.max(angle), np.min(angle))
