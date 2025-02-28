@@ -27,8 +27,16 @@ np.float = np.float64
 np.int = np.int_
 
 
-max_mem = 70
+names = ['GoProHighlights_1hour.mp4', 'Incredible_Nature_Scenes.mp4', 'our_planet.mp4', 'the_contract.mp4', 'GoPro1.mp4']
+
+#Disables memory allocation. Makes the code run slower, in theory. 
+np.cuda.set_allocator(None)
+
+
+max_mem = 90
 freq_length = 128
+
+Cx_n_bins = 128
 
 #Use second GPU
 np.cuda.runtime.setDevice(1)
@@ -237,12 +245,11 @@ class video_segment():
         #self.Cx = np.log10(Cx)
         self.Cx = Cx
 
-class PSD():
-    #Frames is an array with 2 values: [frame_min, frame_max]
-    def __init__(self, video_name, time_bins, n_spatial_bins, frames = None, path = global_path, means = None):
-        
-        self.color_means = np.array([0,0,0])
-        self.color_stds = np.array([1,1,1])
+
+class Video():
+    def __init__(self, video_name, time_bins, path = global_path, frames = None):
+        self.video_name = video_name
+        self.video = moviepy.editor.VideoFileClip(path + video_name)
         try:
             self.video_clip = moviepy.editor.VideoFileClip(path + video_name)
         except FileNotFoundError:
@@ -253,10 +260,15 @@ class PSD():
         else:
             self.max_frame = frames[1]
             self.min_frame = frames[0]
+        
         self.time_points = np.arange(self.min_frame, self.max_frame, time_bins)
-        self.n_spatial_bins = n_spatial_bins
+        self.color_means = np.array([0,0,0])
+        self.color_stds = np.array([1,1,1])
         if global_normalize:
             self.compute_means()
+        print("Hello")
+        
+        
         
     def compute_means(self):
         print("Computing mean and std of each color channel")
@@ -273,6 +285,23 @@ class PSD():
         print("Done computing mean and std of each color channel")
         self.color_means = means_sum/(self.time_points.shape[0]-1)
         self.color_stds = stds_sum/(self.time_points.shape[0]-1)
+class PSD():
+    #Frames is an array with 2 values: [frame_min, frame_max]
+    def __init__(self, video_names, time_bins, n_spatial_bins, frames = None, path = global_path):
+        
+        self.n_spatial_bins = n_spatial_bins
+        self.time_bins = time_bins
+        
+        videos = []
+        for video_name in video_names:
+            video = Video(video_name, time_bins, frames = frames, path = path)
+            videos.append(video)
+        self.videos = videos
+        
+        
+
+        
+   
         
     #time_bins = how long should each segment be. n_spatial_bins = we need to bin radial frequencies, how many bins do you want in total.
     def average_TS_PSD(self):
@@ -280,46 +309,49 @@ class PSD():
         
         new = True
         all_PSD = []
-        
-        for t in range(self.time_points.shape[0]-1):
-            #print("Start:", time.time() - current_time)
-            check_memory(max_mem, print_statement = False)
-            segment = video_segment(self.video_clip, [self.time_points[t], self.time_points[t+1]], self.color_means, self.color_stds)
-            #print("Made segment:", time.time() - current_time)
-            segment.make_psd_3D()
-            #print("Make_psd_3D:", time.time() - current_time)
-            segment.make_spatiotemporal_psd(self.n_spatial_bins, True) #This is where the power values go through log10
-            #print("Spatiotemporal_psd", time.time() - current_time)
-            
-            #psd = segment.STpsd_test
-            #psd3d = segment.psd3D
-            
-            Cx_seg = segment.Cx
-            self.last_segment = segment
-            #all_PSD.append(segment.STpsd)
-            if new:
-                #psd_sum = psd
-                #psd3d_sum = psd3d
-                new = False
-                Cx_sum = Cx_seg
-            else: 
-                if not np.max(abs(Cx_seg)) == np.inf and not np.any(np.isnan(Cx_seg)):
-                    Cx_sum += Cx_seg
-                    #psd_sum += psd
-                    #psd3d_sum += psd3d
-                else:
-                    
-                    print("Removed segment number:", str(t))
-                    self.problem = Cx_seg
-                    self.problem2 = segment
-            if self.time_points[t]%10000 == 0:
-                print(self.time_points[t])
+        total_segments = 0
+        for video in self.videos:
+            print(video.video_name)
+            for t in range(video.time_points.shape[0]-1):
+                total_segments += 1
+                #print("Start:", time.time() - current_time)
+                check_memory(max_mem, print_statement = False)
+                segment = video_segment(video.video_clip, [video.time_points[t], video.time_points[t+1]], video.color_means, video.color_stds)
+                #print("Made segment:", time.time() - current_time)
+                segment.make_psd_3D()
+                #print("Make_psd_3D:", time.time() - current_time)
+                segment.make_spatiotemporal_psd(self.n_spatial_bins, True) #This is where the power values go through log10
+                #print("Spatiotemporal_psd", time.time() - current_time)
+                
+                #psd = segment.STpsd_test
+                #psd3d = segment.psd3D
+                
+                Cx_seg = segment.Cx
+                #self.last_segment = segment
+                #all_PSD.append(segment.STpsd)
+                if new:
+                    #psd_sum = psd
+                    #psd3d_sum = psd3d
+                    new = False
+                    Cx_sum = Cx_seg
+                else: 
+                    if not np.max(abs(Cx_seg)) == np.inf and not np.any(np.isnan(Cx_seg)):
+                        Cx_sum += Cx_seg
+                        #psd_sum += psd
+                        #psd3d_sum += psd3d
+                    else:
+                        
+                        print("Removed segment number:", str(t))
+                        self.problem = Cx_seg
+                        self.problem2 = segment
+                if video.time_points[t]%10000 == 0:
+                    print(video.time_points[t])
         #self.PSD = (psd_sum/self.time_points.shape[0]).get()
         #self.PSD3D = psd3d_sum/self.time_points.shape[0]
         self.all_PSD = np.array(all_PSD).get()
-        Cx = (Cx_sum/self.time_points.shape[0])
+        Cx = (Cx_sum/total_segments)
         self.Cx = Cx.get()
-        Cx_bin = bin_Cx(Cx,100)
+        Cx_bin = bin_Cx(Cx,Cx_n_bins)
         self.Cx_bin = Cx_bin.get()
         Cx = Cx_bin.get()
         
@@ -421,17 +453,19 @@ def bin_Cx(Cx, n_bins):
     freqs_space = np.sqrt(x_freqs**2 + y_freqs**2)
     
     bins = numpy.linspace(np.min(freqs_space), np.max(x_freqs), n_bins)
+    #bins = numpy.linspace(np.min(freqs_space), np.max(freqs_space), n_bins)
+    
     digitized = np.digitize(freqs_space, bins)
     angle = np.arctan((x_freqs + 0.0001)/(y_freqs + 0.0001))
     print(np.max(angle), np.min(angle))
     #bin_means = [power[digitized == i].reshape([self.psd3D.shape[0],self.n_colors, -1]).mean(axis=2) for i in range(1, len(bins)-1)] #I ran tests and this should be the right order
     bin_means = []
     for i in range(1, len(bins) - 1):
-        means = Cx[digitized == i].reshape([n_TFs,n_colors,n_colors, -1])
+        #means = Cx[digitized == i].reshape([n_TFs,n_colors,n_colors, -1])
         
-        #Code for troubleshooting purposes: Look at Cx at different angles 
-        #means = Cx[np.logical_and(digitized == i, np.logical_and(angle > -0.1,angle<0.1))].reshape([n_TFs,n_colors,n_colors, -1])
-        #means = Cx[np.logical_and(digitized == i, np.logical_and(angle > np.pi/4-0.1,angle<np.pi/4+0.1))].reshape([n_TFs,n_colors,n_colors, -1])
+        #Only take angles away from 0 or pi/2. Right thing to do!
+        #means = Cx[np.logical_and(digitized == i, np.logical_and(abs(angle) > 0.1, abs(angle)< np.pi/2 - 0.1))].reshape([n_TFs,n_colors,n_colors, -1])
+        means = Cx[np.logical_and(digitized == i, np.logical_and(abs(angle) > np.pi/4 -0.1, abs(angle) < np.pi/4 +0.1))].reshape([n_TFs,n_colors,n_colors, -1])
         mean = means.mean(axis=3)
         if not np.isnan(mean[0,0,0]):
             bin_means.append(mean.get())
