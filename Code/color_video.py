@@ -27,13 +27,14 @@ np.float = np.float64
 np.int = np.int_
 
 
-names = ['GoProHighlights_1hour.mp4', 'Incredible_Nature_Scenes.mp4', 'our_planet.mp4', 'the_contract.mp4', 'GoPro1.mp4']
-
+names = ['GoProHighlights_1hour.mp4', 'Incredible_Nature_Scenes.mp4', 'our_planet.mp4', 'GoPro1.mp4'] #The contract looked really weird. Always same motion. 
+#names = ['our_planet.mp4']
+#names = ["GoPro1.mp4"]
 #Disables memory allocation. Makes the code run slower, in theory. 
 np.cuda.set_allocator(None)
 
 
-max_mem = 90
+max_mem = 95
 freq_length = 128
 
 Cx_n_bins = 128
@@ -285,6 +286,8 @@ class Video():
         print("Done computing mean and std of each color channel")
         self.color_means = means_sum/(self.time_points.shape[0]-1)
         self.color_stds = stds_sum/(self.time_points.shape[0]-1)
+        
+        
 class PSD():
     #Frames is an array with 2 values: [frame_min, frame_max]
     def __init__(self, video_names, time_bins, n_spatial_bins, frames = None, path = global_path):
@@ -537,9 +540,9 @@ def plot_eig_diff(to_plot):
                 ax[i,j].set_visible(False)
     fig.tight_layout()
 
-def save_params(params):
+def save_params(params, name):
     this_dict = {'Cx': params.Cx, 'Cx_bin': params.Cx_bin, 'Cx_eigvals':params.Cx_eigvals, 'Cx_eigvects': params.Cx_eigvects}
-    with open(global_path + '/../Cx.pkl', 'wb') as outp:
+    with open(global_path + '/../' + name + '.pkl', 'wb') as outp:
         pickle.dump(this_dict, outp)
         
 
