@@ -35,14 +35,14 @@ np.cuda.set_allocator(None)
 
 
 max_mem = 95
-freq_length = 128
+freq_length = 512
 
 Cx_n_bins = 128
 
 #Use second GPU
 np.cuda.runtime.setDevice(1)
 
-global_normalize = True
+global_normalize = False
 
 ###NOTE I CHANGED BIN_PSD TO NOT TAKE LOW SPATIAL FREQUENCIES IN X OR Y AS A TEST!!!
 
@@ -91,9 +91,9 @@ def check_memory(maximum, print_statement = True):
     #Note 1: Run same plot but with log spatial frequency
     #Note 2: Run same analysis with different window sizes and see if we have same result 
 #This function is obsolete. Use load_video_segment instead. 
-def load_video(filename, n_frames = 10000, path = global_path):
-    check_memory(max_mem)
-    return skvideo.io.vread(path + filename, num_frames = n_frames)[:,:,0:500,:]
+#def load_video(filename, n_frames = 10000, path = global_path):
+#    check_memory(max_mem)
+#    return skvideo.io.vread(path + filename, num_frames = n_frames)[:,:,0:500,:]
 
 def load_video_segment(video_clip, frames):
     fps = video_clip.fps
@@ -104,7 +104,7 @@ def load_video_segment(video_clip, frames):
     for t in frames_array:
         video_segment.append(video_clip.get_frame(t/fps))
     video_segment = np.array(video_segment)
-    #print(video_segment.shape)
+    print(video_segment.shape)
     x_center = int(video_segment.shape[1]/2)
     y_center = int(video_segment.shape[2]/2)
     
@@ -139,7 +139,8 @@ class video_segment():
             
                 video_lms[:,c,:,:] = (video_lms[:,c,:,:] - color_means[c])/color_stds[c]
                 #print(np.mean(video_lms[t,c,:,:]), np.std(video_lms[t,c,:,:]))
-                #ideo_lms[t,c,:,:] = video_lms[t,c,:,:] - np.mean(video_lms[t,c,:,:])#/np.std(video_lms[t,c,:,:])
+                for t in range(video_lms.shape[0]):
+                    video_lms[t,c,:,:] = video_lms[t,c,:,:] - np.mean(video_lms[t,c,:,:])#/np.std(video_lms[t,c,:,:])
                 #print(video_lms.shape)
             
         self.video = video_lms 
@@ -281,7 +282,7 @@ class Video():
             std = np.std(segment.video, axis = (0,2,3))
             means_sum += mean
             stds_sum += std
-            if self.time_points[t]%10000 == 0:
+            if t%100 == 0:
                 print(self.time_points[t], means_sum/(t + 1), stds_sum/(t + 1))
         print("Done computing mean and std of each color channel")
         self.color_means = means_sum/(self.time_points.shape[0]-1)
@@ -347,7 +348,7 @@ class PSD():
                         print("Removed segment number:", str(t))
                         self.problem = Cx_seg
                         self.problem2 = segment
-                if video.time_points[t]%10000 == 0:
+                if t%100 == 0:
                     print(video.time_points[t])
         #self.PSD = (psd_sum/self.time_points.shape[0]).get()
         #self.PSD3D = psd3d_sum/self.time_points.shape[0]

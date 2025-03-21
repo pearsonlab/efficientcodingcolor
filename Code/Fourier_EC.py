@@ -1,3 +1,5 @@
+#%%
+
 # -*- coding: utf-8 -*-
 """
 Created on Tue Dec 17 21:13:14 2024
@@ -24,7 +26,19 @@ from scipy.interpolate import RectBivariateSpline, BivariateSpline
 
 #test = grid_models([0.06125,0.125,0.25,0.5,1], [1,2,3,4,5,6]) #To get clean transition through 0
 
-P_total = 100
+
+#test = grid_models([10,15,20,25,30,70,100], [10,100,1000,10000])
+
+P_total = 1000
+eig_labels = ["L+M+S","L+M-S","L-M"]
+colors = ['red', 'green', 'blue', 'purple', 'orange', 'brown', 'yellow', 'pink', 'darkred', 'olive']
+#Plots on March 17th:
+x = 3
+#test = grid_models([3,10,30,90,270], [100/(x**2),100/x, 100, 100*x, 100*x*x])
+
+#Biggest one to study output noise:
+#test = grid_models([3,10,30,90,270], [100/(x**4),100/(x**3),100/(x**2),100/x, 100, 100*x, 100*x*x])
+
 
 
 def fft_wshift(v):
@@ -60,26 +74,50 @@ def extrap_and_reflect(fil, N, return_log=False):
     return np.concatenate([expanded[::-1], expanded[1:]])
 
 class covariance():
-    def __init__(self, name, sigin, scaling = 5):
+    def __init__(self, name, scaling = 5):
         self.C_name = name
         self.C_dict = import_C(self.C_name)
+        self.scaling = scaling
         
         self.n_time_freqs = self.C_dict['Cx_eigvals'].shape[1]//2
         self.n_space_freqs = self.C_dict['Cx_eigvals'].shape[0]
         
         self.n_channels = self.C_dict['Cx_bin'].shape[2]
         
+        self.Cx_bin = self.C_dict['Cx_bin']/(10**self.scaling)
+    
+        
+        
+        
+        #Cx = scipy.ndimage.gaussian_filter(Cx_pre, sigma = (2,0,0), order = 0)
+        
+    
+    def eigen(self, sigin, s_noise = 10):
+        
         self.sigin = sigin
         
-        self.eigen()
         
-        Cx_pre = self.C_dict['Cx_eigvals'][:,0:self.n_time_freqs,:]
-        #Cx_pre = self.Cx_pre[:,0:self.n_time_freqs,:]
+        eigvects = np.zeros(self.Cx_bin.shape)
+        Cx_pre = np.zeros(self.Cx_bin.shape[:-1])
+        
+        
+        for i in range(self.Cx_bin.shape[0]):
+            for j in range(self.Cx_bin.shape[1]):
+                eigs = scipy.linalg.eigh(self.Cx_bin[i,j,:,:], b = np.diag([self.sigin, self.sigin, self.sigin*s_noise])) #np.identity(self.n_channels)*self.sigin)
+                Cx_pre[i,j,:] = eigs[0]
+                eigvects[i,j,:,:] = eigs[1]
+        
+
+        
+        
+        
+        #Cx_pre = self.C_dict['Cx_eigvals'][:,0:self.n_time_freqs,:]
+        Cx_pre = Cx_pre[:,0:self.n_time_freqs,:]
         
         Cx_pre = np.flip(Cx_pre, axis = 2)
         
-        U = self.C_dict['Cx_eigvects'][:,0:self.n_time_freqs,:]
-        #U = self.eigvects
+        #U = self.C_dict['Cx_eigvects'][:,0:self.n_time_freqs,:]
+        U = eigvects
         
         U = np.flip(U, axis = 3)
         for i in range(U.shape[0]):
@@ -87,36 +125,12 @@ class covariance():
                 for c in range(U.shape[3]):
                     if U[i,j,0,c] < 0:
                         U[i,j,:,c] *= -1
-        
-        #for i in range(U.shape[0]):
-        #    for j in range(U.shape[1]):
-        #            if U[i,j,0,0] < 0:
-        #                U[i,j,:,0] *= -1
-                    #flip1 = np.random.choice([-1,1])
-        #            flip2 = np.random.choice([-1,1])
-        #            U[i,j,:,2] *= flip2
-        
-        
-        
-        #Cx = scipy.ndimage.gaussian_filter(Cx_pre, sigma = (2,0,0), order = 0)
         self.Cx = scipy.ndimage.median_filter(Cx_pre, size = 5, axes = 0)
         self.eigvects = np.copy(U)
-    
-    def eigen(self):
-        Cx_bin = self.C_dict['Cx_bin']/(10**self.scaling)
-        eigvects = np.zeros(Cx_bin.shape)
-        Cx_pre = np.zeros(Cx_bin.shape[:-1])
-        for i in range(Cx_bin.shape[0]):
-            for j in range(Cx_bin.shape[1]):
-                eigs = scipy.linalg.eigh(Cx_bin[i,j,:,:], b = np.identity(self.n_channels)*self.sigin)
-                Cx_pre[i,j,:] = eigs[0]
-                eigvects[i,j,:,:] = eigs[1]
-        self.Cx_pre = Cx_pre
-        self.eigvects = eigvects
 
-    def interpolate(self, k, o, i, scaling):
+    def interpolate(self, k, o, i):
         func = RectBivariateSpline(np.linspace(0, 2*np.pi, self.Cx.shape[0]), np.linspace(0, 2*np.pi, self.Cx.shape[1]), np.log10(self.Cx[:,:,i]), s = 0)
-        return 10**func(k,o)/(10**scaling) #November 7th, 2024
+        return 10**func(k,o) #November 7th, 2024
     # i is the eigenchannel. Returns eigenvectors number i for different spatial and temporal frequencies. 
     def eigvects_interpolate(self, k, o, i):
         func_L = RectBivariateSpline(np.linspace(0, 2*np.pi, self.eigvects.shape[0]), np.linspace(0, 2*np.pi, self.eigvects.shape[1]), self.eigvects[:,:,0,i], s = 0)
@@ -126,19 +140,66 @@ class covariance():
         #Returns lists of lists but there's no simple way around that if I want the function to generalize for multiple spatial and temporal frequencies.
         return np.array([func_L(k,o), func_M(k,o), func_S(k,o)]) 
     
+    def plot_Cx_space(self, n_freqs, channel):
+        freqs_rad = np.linspace(0.1, 2*np.pi, n_freqs)
+        freqs_index = np.int64(np.linspace(2, self.Cx.shape[1]-1, n_freqs))
+        lines = []
+        
+        for freq_index, freq_rad in zip(freqs_index, freqs_rad):
+            Cx = self.Cx[:,freq_index,channel]
+            line, = plt.plot(np.log10(Cx), label = "Tf = " + str("{:.2f}".format(freq_rad)))
+            lines.append(line)
+        plt.legend(handles=lines, fontsize = 30)
+        plt.xlabel("Spatial Frequency", size = 30)
+        plt.xticks([])
+        plt.ylabel("Cx (log10)", size = 30)
+        plt.yticks(fontsize=24)
+        plt.title(eig_labels[channel], size = 30)
+        
+    def plot_Cx_ratio(self, n_freqs, channel,skip_first=True):
+        if skip_first:
+            start = 1
+        else:
+            start = 0
+        freqs_rad = np.linspace(0.1, 2*np.pi, n_freqs)
+        freqs_index = np.int64(np.linspace(2, self.Cx.shape[1]-1, n_freqs))
+        lines = []
+        
+        for i in range(start,len(freqs_index)-1):
+            Cx1 = self.Cx[:,freqs_index[i],channel]
+            Cx2 = self.Cx[:,freqs_index[i+1], channel]
+            line, = plt.plot(Cx1/Cx2, label = "Tf: " + str("{:.2f}".format(freqs_rad[i])) + "→" + str("{:.2f}".format(freqs_rad[i+1])))
+            lines.append(line)
+        plt.legend(handles=lines, fontsize = 30)
+        plt.xlabel("Spatial Frequency", size = 30)
+        plt.xticks([])
+        plt.ylabel("Cx ratio", size = 30)
+        plt.yticks(fontsize=24)
+        plt.title(eig_labels[channel], size = 30)
+    
+    def plot_Cx_channel(self,temp_freq):
+        lines = []
+        plt.figure()
+        for channel in range(self.n_channels):
+            Cx = self.Cx[:,temp_freq,channel]
+            line, = plt.plot(np.log10(Cx), label = "Eigenchannel:" + str(channel))
+            lines.append(line)
+        plt.legend(handles=lines, fontsize=30)
+        plt.xlabel("Spatial Frequency", size = 30)
+        plt.ylabel("Cx (log10)")
+        plt.xticks([])
+        
+            
+            
+        
 
-#return 10**func(k,o)/1000000
-C = covariance("Cx_all", 1)
-#C = covariance("Cx_GoProHighlights")
-#C= covariance("Cx_planet")
-#C= covariance("Cx_Incredible_Nature_Scenes")
-#C.Cx = C.Cx[0:64,:,:]
 
-#C.eigvects[:,:,:,0] *= -1
-#C.eigvects[:,:,:,1] *= -1
+C = covariance("Cx_all_large", 5)
+
 class model():
-    def __init__(self, fixed_freq, n_freqs, klims, P, fixed_type, sigout, scaling):
-        self.scaling = scaling
+    def __init__(self, fixed_freq, n_freqs, klims, P, fixed_type, sigout, sigin):
+        C.eigen(sigin)
+        self.sigin = sigin
         self.sigout = sigout
         self.fixed_freq = fixed_freq
         self.freqs = np.linspace(0,2*np.pi, n_freqs)
@@ -170,10 +231,10 @@ class model():
                 eps_eigenchannel = 10**log_eps[i]
                 if self.fixed_type == 'spatial':
                     #ktilde = 1/Cx[int(fixed_freq),:, i]
-                    ktilde = 1/C.interpolate(self.fixed_freq, self.freqs, i, self.scaling)
+                    ktilde = 1/C.interpolate(self.fixed_freq, self.freqs, i)
                 elif self.fixed_type == 'temporal':
                     #ktilde = 1/Cx[:,int(fixed_freq), i]
-                    ktilde = 1/C.interpolate(self.freqs, self.fixed_freq, i, self.scaling)
+                    ktilde = 1/C.interpolate(self.freqs, self.fixed_freq, i)
                 
                 
                 power = self.filter_power(eps_eigenchannel, self.freqs, None, i)
@@ -199,10 +260,10 @@ class model():
     def filter_k(self, eps, channel, k_lims=None):
         def v_opt(indices):
             if self.fixed_type == 'spatial':
-                inter = np.clip(C.interpolate(self.fixed_freq,indices, channel, self.scaling), 1e-32, np.inf).T
+                inter = np.clip(C.interpolate(self.fixed_freq,indices, channel), 1e-32, np.inf).T
                 ktilde = 1/inter
             elif self.fixed_type == 'temporal':
-                inter = np.clip(C.interpolate(indices, self.fixed_freq, channel, self.scaling), 1e-32, np.inf)
+                inter = np.clip(C.interpolate(indices, self.fixed_freq, channel), 1e-32, np.inf)
                 ktilde = 1/inter
             ktilde = pad_and_reflect(ktilde[:,0],ktilde.shape[0]*2 - 2)
             sqrt_piece = np.sqrt(1 + (4/(eps*self.sigout**2)) * ktilde)
@@ -217,7 +278,7 @@ class model():
     
     def filter(self, nu, k_lims=None):
         def v_opt(k, o, i):
-            CC = np.minimum(C.interpolate(k, o, i, self.scaling), 1e32)
+            CC = np.minimum(C.interpolate(k, o, i), 1e32)
             sqrt_piece = np.sqrt(CC**2 + (4/nu) * (1/self.sigout**2) * CC)
             v2 = 0.5 * (sqrt_piece + CC) / (1 + CC) - 1
             v2 = np.sqrt(np.maximum(v2, 0) * self.sigout**2)
@@ -232,9 +293,9 @@ class model():
         vfun = self.filter_k(eps, channel, klims)
         v2 = vfun(indices)
         if self.fixed_type == 'spatial':
-            ktilde = 1/C.interpolate(self.fixed_freq, indices, channel, self.scaling)
+            ktilde = 1/C.interpolate(self.fixed_freq, indices, channel)
         elif self.fixed_type == 'temporal':
-            ktilde = 1/C.interpolate(indices, self.fixed_freq, channel, self.scaling)
+            ktilde = 1/C.interpolate(indices, self.fixed_freq, channel)
         
         ktilde = pad_and_reflect(ktilde[:,0],ktilde.shape[0]*2 - 2)
     
@@ -353,22 +414,23 @@ class model():
         self.vspace_LMS = vspace_LMS
        
             
-def train_filters(n_fixed_freq, n_freqs, fixed_type, sigout, scaling):
+def train_filters(n_fixed_freq, n_freqs, fixed_type, sigout, sigin):
     fixed_freqs = np.linspace(0.1,2*np.pi, n_fixed_freq)
     #fixed_freq = np.linspace(0, np.pi/4, 8)
     models = []
     for fixed_freq in fixed_freqs:
         #print(fixed_freq)
-        mod = model(fixed_freq, n_freqs, None, P_total, fixed_type, sigout, scaling)
+        mod = model(fixed_freq, n_freqs, None, P_total, fixed_type, sigout, sigin)
         
         success = mod.get_v()
         if success:
             mod.lms_RFs()
             models.append(mod)
-        
+        else:
+            models.append(None)
     return models
 
-def plot_filters(models, ax = None, plot_range = 50, lms = False, omegas = 'all'):
+def plot_filters(models, ax = None, plot_range = 50, lms = False, omegas = 'all', n_channels = 3):
     if ax is None:
         fig, ax = plt.subplots(1, 3, figsize=(16, 8))
     
@@ -409,7 +471,7 @@ def plot_filters(models, ax = None, plot_range = 50, lms = False, omegas = 'all'
         if cur_max > ymax:
             ymax = cur_max
         
-        for i in range(C.n_channels):
+        for i in range(n_channels):
             if np.max(vspace[i,:]) == 0:
                 print("Zero vspace for kf: ", omega, i)
             if model.fixed_type == 'temporal':
@@ -423,55 +485,10 @@ def plot_filters(models, ax = None, plot_range = 50, lms = False, omegas = 'all'
             ax[i].set_xlabel(r"$z$")
             ax[i].set_title(x_label + channel_labels[i], size = 30);
         lines.append(line)   
-    ax[C.n_channels-1].legend(handles=lines, title = label_title, fontsize = 25, title_fontsize=20)
+    ax[n_channels-1].legend(handles=lines, title = label_title, fontsize = 25, title_fontsize=20)
     for axis in ax:
         axis.set_ylim([ymin, ymax])
 #THERE IS A BUG WITH ARGMAX PLEASE FIX IT BEFORE USE!!!! THERE IS A BUG WITH ARGMAX PLEASE FIX IT BEFORE USE!!!! THERE IS A BUG WITH ARGMAX PLEASE FIX IT BEFORE USE!!!! THERE IS A BUG WITH ARGMAX PLEASE FIX IT BEFORE USE!!!!
-def plot_spacetime(models):
-    fig, ax = plt.subplots(1,3, figsize=(16,8))
-    RFs = []
-    scaling = models[0].scaling
-    n_space_freqs = models[0].freqs.shape[0]
-    k_indices = np.linspace(0, 2*np.pi, n_space_freqs)
-    n_time_freqs = 1000
-    w_indices = np.linspace(0, 2*np.pi, n_time_freqs)
-    channel_labels = ['L+M+S', 'L+M-S', 'L-M']
-    percentile_values = [99, 99.5, 99.9]
-    
-    if models[0].fixed_type != 'temporal':
-        Exception("Models must be spatial filters!")
-        
-    for omega in range(len(models)):
-        model_space = models[omega]
-        vf = model_space.vf
-        max_index = np.argmax(vf)%model_space.n_freqs
-        argmax = 2*np.pi*max_index/model_space.n_freqs
-        #print(argmax, np.argmax(vf), vf.shape)
-        model_time = model(argmax, n_time_freqs, None, 1, 'spatial', model_space.P, scaling)
-        model_time.get_v()
-        vt = model_time.vf
-        RF_omega = []
-        for i in range(model_space.n_channels):
-            RF_color_pre = np.outer(vf[i,:], vt[i,:])
-            plt.figure()
-            plt.imshow(RF_color_pre)
-            #print(RF_color_pre.shape)
-            RF_color = np.roll(RF_color_pre, int(model_space.fixed_freq*n_time_freqs/(2*np.pi)), axis = 1)
-            #RF_color = np.roll(RF_color, int(argmax*model_space.n_freqs/(2*np.pi)))
-            #RF_color = RF_color_pre
-            RF_omega.append(RF_color)
-        RFs.append(RF_omega)
-    RFs = np.array(RFs)
-    for i in range(model_space.n_channels):
-        ax[i].imshow(np.log(C.interpolate(k_indices,w_indices,i,scaling = 0)), origin = 'lower', cmap = 'YlOrRd', vmin = 0, vmax = np.max(np.log(C.Cx))) #C_INTERPOLATE HERE!!!!!
-        for omega in range(len(models)):
-            contour_values = []
-            for percentile in percentile_values:
-                contour_values.append(np.percentile(RFs[omega,i,:,:], percentile) + percentile*10e-32)
-            ax[i].contour(RFs[omega, i,:,:], contour_values, origin = 'lower', alpha = 0.5)
-        ax[i].set_title(channel_labels[i])
-        ax[i].set_xlabel("Temporal frequency", size = 12)
-        ax[i].set_ylabel("Spatial frequency", size = 12)
 
             
 def grid_models(sigs, scales, n_freqs = 10000):
@@ -500,7 +517,7 @@ def grid_values(models_all, sigs = [0.25,0.5,1], command = '[0].powers[2]'):
     plt.imshow(grid_flip, origin='lower')
     plt.ylabel("Output noise", size = 30)
     plt.yticks(np.arange(n_sigs), sigs)
-    plt.xlabel("Input signal (log10)", size = 30)
+    plt.xlabel("Input noise", size = 30)
     plt.xticks([])
     cbar = plt.colorbar()
     cbar.ax.tick_params(labelsize=20)
@@ -537,7 +554,7 @@ def plot_freqs(models, omegas, log = False, ax = None, lms = False, axis_label =
         ax.legend(handles=lines)
         ax.set_xlabel("Frequency", size = 30)
         ax.set_ylabel("Power", size = 30)
-        ax.set_title("sig = " + str(models[0].sigout) + ", scale = " + str(models[0].scaling))
+        ax.set_title("sigout = " + str(models[0].sigout) + ", sigin = " + str(models[0].sigin))
 
 
 def plot_filters_simple(models, omegas, plot_range = 10, ax = None, lms = False, y_range = None, log = False, axis_label = False):
@@ -554,46 +571,62 @@ def plot_filters_simple(models, omegas, plot_range = 10, ax = None, lms = False,
         vspace = model.vspace
     #y_values = np.zeros([vspace.shape])
     y_values = []
-    for i in range(C.n_channels):
+    for i in range(model.n_channels):
         if model.fixed_type == 'temporal':
             y_values.extend(vspace[i,center-plot_range:center+plot_range])
 
-    ax.plot(y_values, color = 'red', label = str(('{:.3f}').format(model.fixed_freq)))
-
+    ax.plot(y_values, color = colors[omegas], label = str(('{:.3f}').format(model.fixed_freq)))
+    ax.axvline(plot_range*2)
+    ax.axvline(plot_range*4)
     if y_range is not None:
         ax.set_ylim([y_range[0], y_range[1]])
     
-    
-#THERE IS A BUG WITH ARGMAX PLEASE FIX IT BEFORE USE!!!! THERE IS A BUG WITH ARGMAX PLEASE FIX IT BEFORE USE!!!! THERE IS A BUG WITH ARGMAX PLEASE FIX IT BEFORE USE!!!! THERE IS A BUG WITH ARGMAX PLEASE FIX IT BEFORE USE!!!!
 
 
 #My input is a function and a set of models at diff params
-def grid_plots(function, models_all, omega, lms, log = False, sharey = True):
+def grid_plots(function, models_all, omega, lms, log = False, sharey = True, size_mul = 1):
     n_sigs = len(models_all)
     n_scales = len(models_all[0])
-    fixed_freq = models_all[0][0][omega].fixed_freq
+    fixed_freq = models_all[2][2][omega].fixed_freq
     fig, axes = plt.subplots(n_sigs, n_scales, sharey = sharey)
+    
+    if function == plot_freqs:
+        x_label = 'Spatial Frequency'
+    elif function == plot_filters_simple:
+        x_label = 'Space'
+    else:
+        x_label = ''
+    
     for sig in range(n_sigs):
         for scale in range(n_scales):
+            model = models_all[sig][scale]
             sig_rev = np.abs(sig-n_sigs+1)
             scale_rev = np.abs(scale-n_scales+1)
-            y_values = models_all[sig][scale]
-            sig_value = models_all[sig][scale][0].sigout
-            scale_value = models_all[sig][scale][0].scaling
-            
-            function(y_values, omegas = omega, ax = axes[sig_rev, scale_rev], lms = lms, log = log, axis_label = False)
-            #except:
-           #     print('oopsie')
+            if model[omega] is not None:
+                
+                
+                y_values = models_all[sig][scale]
+                sig_value = model[omega].sigout
+                scale_value = model[omega].sigin
+                
+                function(y_values, omegas = omega, ax = axes[sig_rev, scale], lms = lms, log = log, axis_label = False)
+                #except:
+               #     print('oopsie')
+            else:
+                sig_value = 0
+                scale_value = 0
             if sig == 0 and scale_rev == 0:
                 print('hi')
-                axes[sig_rev,scale_rev].set_xlabel("Spatial frequency", fontsize= 20)
+                axes[sig_rev,scale_rev].set_xlabel(x_label, fontsize= 20*size_mul)
                 #axes[sig_rev,scale].set_xlabel(scale, fontsize=20)
                 if log:
-                    axes[sig_rev,scale_rev].set_ylabel("Power (log10)", fontsize = 20)
+                    axes[sig_rev,scale_rev].set_ylabel("Power (log10)", fontsize = 20*size_mul)
                 else:
-                    axes[sig_rev,scale_rev].set_ylabel("Amplitude", fontsize = 20)
-            axes[sig_rev,scale_rev].set_title("sig = " + str(sig_value) + ", scale = " + str(scale_value))
-    fig.supxlabel('Input signal (log10)', size = 40)
-    fig.supylabel('Output noise →', size = 40)
-    fig.suptitle("Temporal frequency = " + str(('{:.3f}').format(fixed_freq)) + ", power = " + str(P_total), size = 40)
+                    axes[sig_rev,scale_rev].set_ylabel("Amplitude", fontsize = 20*size_mul)
+            axes[sig_rev,scale].set_title("sigout = " + str(('{:.1f}').format(sig_value)) + ", sigin = " + str(('{:.1f}').format(scale_value)), size = 30*size_mul)
+            axes[sig_rev,scale].set_xticks([])
+            axes[sig_rev,scale].set_yticks([])
+    fig.supxlabel('Input noise →', size = 40*size_mul)
+    fig.supylabel('Output noise →', size = 40*size_mul)
+    fig.suptitle("Temporal frequency = " + str(('{:.3f}').format(fixed_freq)) + ", power = " + str(P_total), size = 40*size_mul)
     
