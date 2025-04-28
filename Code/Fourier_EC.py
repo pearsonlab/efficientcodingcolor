@@ -41,8 +41,10 @@ from scipy.interpolate import RectBivariateSpline, BivariateSpline
 
 #test = grid_models([10,15,20,25,30,70,100], [10,100,1000,10000])
 Cx_name = "Cx_crop512"
-predict_Cx_global = True
+predict_Cx_global = False
+correlated_k_noise = False
 extrap_global=1
+apply_mtf = True
 P_total = 1000
 eig_labels = ["L+M+S","L+M-S","L-M"]
 colors = ['red', 'green', 'blue', 'purple', 'orange', 'brown', 'yellow', 'pink', 'darkred', 'olive']
@@ -62,8 +64,33 @@ def Cx_error(params, k, Cx_empirical):
 def Cx_theory(params, k):
     A = params[0]
     alpha = params[1]
+    if len(params) >= 3:
+        bias = params[2]
+    else:
+        bias = 0
+    
+    #sign = np.sign(k + bias)
+    #k_bias_abs = np.abs(k + bias)
+    #return sign* A/(k_bias_abs**alpha)
+    
+    
+    #return A/((k+bias)**1.3)#alpha) #+ 10**bias
+    return A/((k+bias)**alpha) #+ 10**bias
 
-    return A/(k**alpha)
+def Cx_poly_predict(Cx, deg, k_min = 0, k_max = 2*np.pi):
+    x_fit = np.linspace(k_min,k_max, Cx.shape[0])
+    x_pred = np.linspace(0, 2*np.pi, Cx.shape[0])
+    fit = np.polyfit(x_fit, np.log10(Cx),deg)
+    y_pred = np.zeros(Cx.shape[0])
+    for B,power in zip(fit,list(range(fit.shape[0]))[::-1]):
+        y_pred += B*x_pred**power
+    plt.plot(x_fit, np.log10(Cx), 'o')
+    plt.plot(x_pred, y_pred)
+    plt.xlabel("Spatial Frequency", size = 30)
+    plt.ylabel("Cx (log10)", size = 30)
+    plt.xticks([])
+    return y_pred
+    
 
 def fft_wshift(v):
     return np.real(scipy.fft.fftshift(scipy.fft.fft(scipy.fft.ifftshift(v))))
@@ -109,27 +136,40 @@ class covariance():
         self.n_channels = self.C_dict['Cx_bin'].shape[2]
         
         self.Cx_bin = self.C_dict['Cx_bin']/(10**self.scaling)
+        
+        self.freqs = np.linspace(0.1, 2*np.pi, self.n_space_freqs)
 
     def eigen(self, sigin, s_noise = 1):
-        
         self.sigin = sigin
         eigvects = np.zeros(self.Cx_bin.shape)
-        Cx_pre = np.zeros(self.Cx_bin.shape[:-1])
+        Cx_pre = np.zeros(self.Cx_bin.shape[:-1])                            
+        Cin_all = np.zeros(self.Cx_bin.shape[0:-2])
+        
+        delta = 1.4
+        B = 1
         
         for i in range(self.Cx_bin.shape[0]):
             for j in range(self.Cx_bin.shape[1]):
-                eigs = scipy.linalg.eigh(self.Cx_bin[i,j,:,:], b = np.diag([self.sigin, self.sigin, self.sigin*s_noise])) #np.identity(self.n_channels)*self.sigin)
+                k = self.freqs[i]
+                if correlated_k_noise:    
+                    Cin = k**delta * np.exp(-B*k) * self.sigin
+                else:
+                    Cin = self.sigin
+                b_pre = np.diag([Cin, Cin, Cin*s_noise]).astype(np.float64)
+                b_pre[0,1] = Cin*0#.9
+                b_pre[1,0] = Cin*0#.9
+                eigs = scipy.linalg.eigh(self.Cx_bin[i,j,:,:], b = b_pre)
+                
+                Cin_all[i,j] = Cin
                 Cx_pre[i,j,:] = eigs[0]
                 eigvects[i,j,:,:] = eigs[1]
         
         #Cx_pre = self.C_dict['Cx_eigvals'][:,0:self.n_time_freqs,:]
         Cx_pre = Cx_pre[:,0:self.n_time_freqs,:]
-        
         Cx_pre = np.flip(Cx_pre, axis = 2)
         
         #U = self.C_dict['Cx_eigvects'][:,0:self.n_time_freqs,:]
-        U = eigvects
-        
+        U = eigvects[:,0:self.n_time_freqs,:,:]
         U = np.flip(U, axis = 3)
         for i in range(U.shape[0]):
             for j in range(U.shape[1]):
@@ -138,14 +178,28 @@ class covariance():
                         U[i,j,:,c] *= -1
         self.Cx = scipy.ndimage.median_filter(Cx_pre, size = 5, axes = 0)
         self.eigvects = np.copy(U)
-
+        self.Cin = Cin_all
+        
     def interpolate(self, k, o, i, predict = predict_Cx_global):
         if predict:
             Cx = self.Cx_predict
         else:
             Cx = self.Cx
         func = RectBivariateSpline(np.linspace(0, 2*np.pi, self.Cx.shape[0]), np.linspace(0, 2*np.pi, self.Cx.shape[1]), np.log10(Cx[:,:,i]), s = 0)
+        
         return 10**func(k,o) #November 7th, 2024
+    
+    def MTF(self, k0, delta = 1.4, predict = False):
+        k = self.freqs
+        mtf = np.exp(-(k/k0)**delta)
+        mtf = np.expand_dims(np.expand_dims(mtf, 1), 1)
+        mtf = np.repeat(mtf, 3, axis = 2)
+        mtf = np.repeat(mtf, self.Cx.shape[1], axis = 1)
+        self.mtf = mtf
+        self.Cx = self.Cx * self.mtf
+        if predict:
+            self.Cx_predict = self.Cx_predict * self.mtf
+        
     # i is the eigenchannel. Returns eigenvectors number i for different spatial and temporal frequencies. 
     def eigvects_interpolate(self, k, o, i):
         func_L = RectBivariateSpline(np.linspace(0, 2*np.pi, self.eigvects.shape[0]), np.linspace(0, 2*np.pi, self.eigvects.shape[1]), self.eigvects[:,:,0,i], s = 0)
@@ -191,12 +245,18 @@ class covariance():
         plt.ylabel("Cx ratio", size = 30)
         plt.yticks(fontsize=24)
         plt.title(eig_labels[channel], size = 30)
-    
-    def plot_Cx_channel(self,temp_freq):
+
+    def plot_Cx_channel(self,temp_freq, predict = False):
         lines = []
         plt.figure()
+        
+        if predict:
+            Cx_all = self.Cx_predict
+        else:
+            Cx_all = self.Cx 
+        
         for channel in range(self.n_channels):
-            Cx = self.Cx[:,temp_freq,channel]
+            Cx = Cx_all[:,temp_freq,channel]
             line, = plt.plot(np.log10(Cx), label = "Eigenchannel:" + str(channel))
             lines.append(line)
         plt.legend(handles=lines, fontsize=30)
@@ -205,24 +265,37 @@ class covariance():
         plt.xticks([])
         plt.axhline(np.max(np.log10(Cx)), color = 'black')
         
-    def fit_Cx_theory(self, extrap = 1):
+    def fit_Cx_theory(self, extrap = 1, min_freq = 0.1, plot = False):
+        #emove = 31
+        #remove = 0
+        remove = int(self.Cx.shape[0] * min_freq/(2*np.pi))
+        
         self.Cx_predict = np.zeros(self.Cx.shape)
         self.A = np.zeros([self.Cx.shape[1], self.Cx.shape[2]])
         self.alpha = np.zeros([self.Cx.shape[1], self.Cx.shape[2]])
-                           
+        self.k_bias = np.zeros([self.Cx.shape[1], self.Cx.shape[2]])
+        
+        
         for t in range(C.Cx.shape[1]):
             for c in range(C.Cx.shape[2]):
-                k_fit = np.linspace(0.1, np.pi*2, C.Cx.shape[0])
-                model = scipy.optimize.minimize(Cx_error, [20000,1.5], method = 'Nelder-Mead', args = (k_fit, C.Cx[:,t,c]))
+                k_fit = np.linspace(min_freq, np.pi*2, C.Cx.shape[0] - remove)
+                model = scipy.optimize.minimize(Cx_error, [20000,1.5,0], method = 'Nelder-Mead', args = (k_fit, C.Cx[remove:,t,c]))
                 k_predict = np.linspace(0.1, np.pi*2*extrap, C.Cx.shape[0])
                 
                 self.A[t,c] = model.x[0]
                 self.alpha[t,c] = model.x[1]
+                #self.k_bias[t,c] = model.x[2]
                 Cx_predict = Cx_theory(model.x, k_predict)
                 self.Cx_predict[:,t,c] = Cx_predict
-        
-        #plt.plot(np.log10(Cx_theory(you.x,k)))
-        #plt.plot(np.log10(C.Cx[:,0,c]))
+        #k_fit2 = np.linspace(min_freq - np.pi/4, np.pi*2, C.Cx.shape[0])
+        k_fit2 = np.linspace(min_freq, np.pi*2, C.Cx.shape[0])
+        if plot:
+            plt.plot(k_fit2, np.log10(self.Cx[:,0,0]), 'o')
+            plt.plot(k_fit2, np.log10(self.Cx_predict[:,0,0]))
+            
+            plt.xticks([])
+            plt.xlabel("Spatial Frequency", size = 30)
+            plt.ylabel("Cx", size = 30)
             
         
 
@@ -237,7 +310,10 @@ C = covariance(Cx_name, 5)
 class model():
     def __init__(self, fixed_freq, n_freqs, klims, P, fixed_type, sigout, sigin):
         C.eigen(sigin)
+        
         C.fit_Cx_theory(extrap=extrap_global)
+        if apply_mtf:
+            C.MTF(0.5, predict = True) #0.2 for best results 
         self.sigin = sigin
         self.sigout = sigout
         self.fixed_freq = fixed_freq
@@ -279,9 +355,7 @@ class model():
                 power = self.filter_power(eps_eigenchannel, self.freqs, None, i)
                 
                 ktilde = pad_and_reflect(ktilde[:,0],ktilde.shape[0]*2 - 2)
-                #numer = np.maximum(0, 1/(2 * (ktilde + 1e-32)) * (np.sqrt(1 + 4 * ktilde/(eps_eigenchannel * self.sigout**2)) - 1) - 1) + 1
-                #denom = np.maximum(0, 1/(2 * (ktilde + 1)) * (np.sqrt(1 + 4 * ktilde/(eps_eigenchannel * self.sigout**2)) + 1) - 1) + 1
-                
+
                 numer = power + self.sigout**2
                 denom = (ktilde/(1+ktilde)*power + self.sigout**2)
                 
@@ -369,7 +443,7 @@ class model():
     
     def get_v(self):
         # make a double exponential smoothing filter
-        fz = np.linspace(-.2,.2, int(self.n_freqs/20)) #0.0015 for 1000 and 0.0001 for 10000
+        fz = np.linspace(-.2,.2, int(self.n_freqs/5)) #0.0015 for 1000 and 0.0001 for 10000
         #fz = np.arange(-.2,.2, 0.0001)
         ff = np.exp(-20 * np.abs(fz))
         ff /= np.sum(ff)
@@ -472,8 +546,6 @@ def train_filters(n_fixed_freq, n_freqs, fixed_type, sigout, sigin):
 def plot_filters(models, ax = None, plot_range = 50, lms = False, omegas = 'all', n_channels = 3):
     if ax is None:
         fig, ax = plt.subplots(1, 3, figsize=(16, 8))
-    
-    
     colors = ['red', 'green', 'blue', 'purple', 'orange', 'brown', 'yellow', 'pink', 'darkred', 'olive']
     if not lms:
         channel_labels = ['L+M+S', 'L+M-S', 'L-M']
@@ -597,7 +669,6 @@ def plot_freqs(models, omegas, log = False, ax = None, lms = False, axis_label =
 
 
 def plot_filters_simple(models, omegas, plot_range = 50, ax = None, lms = False, y_range = None, log = False, axis_label = False):
-    
     model = models[omegas]
     if ax is None:
         fig, ax = plt.subplots(1,1)
@@ -614,9 +685,10 @@ def plot_filters_simple(models, omegas, plot_range = 50, ax = None, lms = False,
         if model.fixed_type == 'temporal':
             y_values.extend(vspace[i,center-plot_range:center+plot_range])
 
-    ax.plot(y_values, color = colors[omegas], label = str(('{:.3f}').format(model.fixed_freq)))
+    ax.plot(y_values, color = colors[omegas], label = str(('{:.5f}').format(model.fixed_freq)))
     ax.axvline(plot_range*2)
     ax.axvline(plot_range*4)
+    ax.axhline(0, linestyle = '--')
     if y_range is not None:
         ax.set_ylim([y_range[0], y_range[1]])
     
@@ -626,7 +698,17 @@ def plot_filters_simple(models, omegas, plot_range = 50, ax = None, lms = False,
 def grid_plots(function, models_all, omega, lms, log = False, sharey = True, size_mul = 0.5):
     n_sigs = len(models_all)
     n_scales = len(models_all[0])
-    fixed_freq = models_all[1][1][omega].fixed_freq
+    flag = False
+    for i in range(len(models_all)):
+        for j in range(len(models_all[0])):
+            model_ex = models_all[i][j][omega]
+            if model_ex is not None:
+                break
+                flag = True
+        if flag:
+            break
+
+    fixed_freq = model_ex.fixed_freq
     fig, axes = plt.subplots(n_sigs, n_scales, sharey = sharey)
     
     if function == plot_freqs:
