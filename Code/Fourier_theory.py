@@ -84,8 +84,16 @@ def extrap_and_reflect(fil, N, return_log=False):
         expanded = np.exp(expanded)
     return np.concatenate([expanded[::-1], expanded[1:]])
 
-def Taylor_first(freqs, k0, A, sigout, nu, delta = 1.4, alpha = 1.3):
-    pass
+#Taylor approximation for when k << 1. 
+def Taylor_small1(freqs, k0, A, sigout, nu, sigin, delta = 1.4, alpha = 1.3):
+    freqs = freqs + 0.001
+    if apply_mtf:
+        mtf = math.e**(-(freqs/k0)**delta)
+    else:
+        mtf = 1
+    lamb = A/(freqs**alpha * sigin)  * mtf
+    inner = lamb/8 * np.sqrt(lamb * nu * sigout**2) - 1
+    return sigout**2 * freqs * np.clip(inner, a_min = 0, a_max = np.inf)
 
 #Compares approximation with k << 1 with the original. Doesnt work
 def power_predict2_with_t(freqs, k0, A, sigout, nu, delta = 1.4, alpha = 1.3):
@@ -94,7 +102,7 @@ def power_predict2_with_t(freqs, k0, A, sigout, nu, delta = 1.4, alpha = 1.3):
     e = math.e
     kf = A**(1/alpha)
     p_pre = t**(2-(alpha/2) - delta)*e**(-t)
-    p = nu**0.5 * sigout * np.clip(kf**(alpha/2) * 2**((2-alpha/2)/delta) * k0**(2-alpha/2) * p_pre - freqs, a_min = 0, a_max = np.inf)
+    p = nu**0.5 * sigout**2 * np.clip(kf**(alpha/2) * 2**((2-alpha/2)/delta) * k0**(2-alpha/2) * p_pre - freqs, a_min = 0, a_max = np.inf)
     return p
 
 #Same as power_predict1 but before substitution
@@ -114,7 +122,6 @@ def power_fun(freqs, k0, A, sigout, nu, sigin, delta = 1.4, alpha = 1.3):
     lamb = A/(freqs**alpha * sigin)  * mtf
     
     sqrt_block = np.sqrt(1 + 4/(lamb*nu*sigout**2))
-    print(np.max(sqrt_block), nu, sigout, np.max(lamb))
     square_block = np.clip(lamb/2 * (sqrt_block - 1) - 1, 0, np.inf)
     dk = 2*np.pi/len(freqs)
     r = sigout**2 * freqs * square_block * dk / (2*np.pi)
@@ -240,13 +247,11 @@ class model():
 
     def filter_k(self, eps, channel, k_lims=None):
         def v_opt(indices):
-            #print(indices)
             inter = self.Cx[:, channel].T
             lamb = pad_and_reflect(inter,inter.shape[0]*2 - 2)
             #ktilde = 1/inter
             #ktilde = pad_and_reflect(ktilde,ktilde.shape[0]*2 - 2)
             sqrt_piece = np.sqrt(1 + (4/(eps*self.sigout**2 * lamb)))
-            print(np.max(sqrt_piece), eps, self.sigout, np.max(lamb))
             self.sqrt_piece = sqrt_piece
             #print(sqrt_piece.shape, lamb.shape)
             v2 = 0.5 * (sqrt_piece + 1) / (1 + 1/lamb) - 1

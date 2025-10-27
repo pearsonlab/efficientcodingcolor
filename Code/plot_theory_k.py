@@ -5,7 +5,7 @@ Created on Mon Oct 20 16:23:02 2025
 @author: david
 """
 
-from Fourier_theory import grid_models, power_fun, k0_global, power_predict2
+from Fourier_theory import grid_models, power_fun, k0_global, power_predict2, Taylor_small1
 import matplotlib.pyplot as plt
 
 test = grid_models([100], [0.1])
@@ -14,7 +14,7 @@ log_nu = a.log_nu
 c = 2
 A = 100#a.A[c]
 
-plt.plot(power_predict2(a.freqs,k0_global,A,a.sigout,10**log_nu, sigin= a.sigin), label = r"Estimate when $\lambda$ << 1")
+plt.plot(Taylor_small1(a.freqs,k0_global,A,a.sigout,10**log_nu, sigin= a.sigin), label = r"Estimate when $\lambda$ << 1")
 plt.plot(power_fun(a.freqs,k0_global,A,a.sigout,10**log_nu, sigin= a.sigin), label = "True function")
 plt.xlabel("Frequency", size = 30)
 plt.ylabel("Power", size = 30)
