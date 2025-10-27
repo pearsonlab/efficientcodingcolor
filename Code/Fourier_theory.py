@@ -84,7 +84,7 @@ def extrap_and_reflect(fil, N, return_log=False):
         expanded = np.exp(expanded)
     return np.concatenate([expanded[::-1], expanded[1:]])
 
-def power_predict1(freqs, k0, A, sigout, nu, delta = 1.4, alpha = 1.3):
+def Taylor_first(freqs, k0, A, sigout, nu, delta = 1.4, alpha = 1.3):
     pass
 
 #Compares approximation with k << 1 with the original. Doesnt work
